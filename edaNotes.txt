@@ -1,0 +1,35 @@
+U.S. Chronic Disease Indicators
+
+
+1. Dataset overview
+	•	309,215 rows
+	•	34 columns
+	•	19 high level health Topics
+	•	109 unique Questions (individual health indicators)
+
+This is not person level data.
+Each row is a reported measurement for a specific health indicator, for a certain place, time period, and demographic group.
+
+2. Structure
+The columns fall into groups:
+	•	Time -> YearStart, YearEnd
+	•	Geography > LocationAbbr, LocationDesc
+	•	What is being measured -> Topic, Question, DataValue
+	•	Uncertainty -> LowConfidenceLimit, HighConfidenceLimit
+	•	Population breakdown -> Stratification columns (like sex, race, etc.)
+
+3. Topic Distribution
+Top topics by number of rows:
+	•	Cardiovascular Disease (~30k rows)
+	•	Chronic Obstructive Pulmonary Disease (~27k rows)
+	•	Nutrition / Physical Activity (~26k rows)
+	•	Health Status (~25k rows)
+	•	Alcohol (~25k rows)
+
+We probably shouldn’t analyze all 19 topics together.
+
+Each topic measures different things with different units, so combining them would be messy and misleading.
+
+A better idea is to focus on 1–2 related topics and go deeper.
+
+Right now Cardiovascular Disease and Chronic Obstructive Pulmonary Disease look interesting.

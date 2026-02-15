@@ -1,0 +1,15 @@
+# Virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+
+# Large raw data (if needed)
+data/raw/*.csv
+
+# Outputs
+outputs/

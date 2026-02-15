@@ -1,5 +1,5 @@
 U.S. Chronic Disease Indicators
-
+(PS: Note that if it looks like I have a lot of commits, its not just for the course requirement, I honestly just have a habit of committing my work after each small step - learnt it the hard way in corporate)
 
 1. Dataset overview
 	•	309,215 rows
@@ -33,3 +33,46 @@ Each topic measures different things with different units, so combining them wou
 A better idea is to focus on 1–2 related topics and go deeper.
 
 Right now Cardiovascular Disease and Chronic Obstructive Pulmonary Disease look interesting.
+
+
+---
+
+I narrowed the dataset to two Topics:
+	•	Cardiovascular Disease
+	•	Chronic Obstructive Pulmonary Disease
+
+That gave us:
+	•	57,660 rows total
+	•	~27.6% missing DataValue
+	•	~41k usable numeric values
+
+So even after filtering, we still have a large dataset.
+
+---
+
+When I initially summarized DataValue across the subset, the numbers looked insane:
+	•	Mean ≈ 2,398
+	•	Max ≈ 2.9 million
+
+At first this looked like bad data.
+
+But then I checked DataValueUnit and found four different units:
+	•	%
+	•	cases per 100,000
+	•	Number
+	•	cases per 1,000
+
+We cannot analyze DataValue globally.
+
+We must filter by DataValueUnit first.
+
+Filtering to Percentages Only
+I filtered to:
+
+DataValueUnit == “%”
+
+Now the summary looks like: 
+	•	12,480 rows
+	•	Mean ≈ 32.5
+	•	Median ≈ 31.6
+	•	Max ≈ 96.5

@@ -1,0 +1,10 @@
+2.7 Surprise Findings
+
+Surprise 1: High Impact of Missing Data
+Dropping rows with missing Data Value removed over 40% of the dataset and significantly altered state representation. This was unexpected and revealed that missingness is not trivial or random. In public health surveillance data, missing values may reflect suppression or reporting delays rather than absence of events. This changed our approach to retain missing values rather than apply naive deletion.
+
+Surprise 2: Extreme Values Are Structural, Not Anomalies
+Removing the top 1% of death counts eliminated over 40% of observations, indicating that high values are common rather than rare outliers. This reflects real concentration of overdose burden in certain states. We therefore avoided trimming high values and preserved the natural distribution.
+
+Surprise 3: Rolling Totals Cannot Be Aggregated Naively
+We initially attempted to aggregate death counts across months, but discovered that the dataset contains overlapping 12-month rolling totals. Summing across months results in double-counting. This structural property changed our analytical approach and reinforced the need to respect the rolling-window design of surveillance data.

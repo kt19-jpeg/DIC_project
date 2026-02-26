@@ -10,7 +10,7 @@ sns.set_style("whitegrid")
 plt.rcParams['figure.figsize'] = (14, 8)
 
 # Load data
-data_path = Path(__file__).parent.parent / 'data' / 'VSRR_Provisional_Drug_Overdose_Death_Counts_20260214.csv'
+data_path = Path(__file__).parent.parent / 'data' / 'raw' / 'VSRR_Provisional_Drug_Overdose_Death_Counts_20260214.csv'
 df = pd.read_csv(data_path)
 
 # Redirect sys.stdout to findings.txt at the very top
@@ -172,3 +172,99 @@ plt.savefig(Path(__file__).parent.parent / 'reports' / 'eda_analysis.png', dpi=3
 # At the very end, after all code:
 findings_file.close()
 sys.stdout = sys.__stdout__
+
+# Redirect dead end outputs to separate file
+deadends_path = Path(__file__).parent.parent / "reports" / "deadends.txt"
+deadends_file = open(deadends_path, "w", encoding="utf-8")
+
+def dropna(df):
+   
+    print("\n" + "="*80, file=deadends_file)
+    print("DEAD END 1: DROPPING ALL MISSING DATA VALUES", file=deadends_file)
+    print("="*80, file=deadends_file)
+    original_rows = len(df)
+
+    df_dropped = df.dropna(subset=["Data Value"])
+    dropped_rows = len(df_dropped)
+
+    print(f"Original rows: {original_rows}", file=deadends_file)
+    print(f"Rows after dropping missing Data Value: {dropped_rows}", file=deadends_file)
+    print(f"Percentage removed: {((original_rows - dropped_rows) / original_rows) * 100:.2f}%", file=deadends_file)
+
+    # Compare state distribution before and after
+    state_counts_original = df["State"].value_counts(normalize=True)
+    state_counts_dropped = df_dropped["State"].value_counts(normalize=True)
+
+    state_shift = (state_counts_original - state_counts_dropped).abs().sort_values(ascending=False).head(5)
+
+    print("\nTop 5 states most affected by dropping missing values:", file=deadends_file)
+    print(state_shift, file=deadends_file)
+
+    print("Conclusion: ", file=deadends_file)
+    print("\nDropping missing Data Value entries removed 41.55% of the dataset and disproportionately altered the representation of certain states, including national-level aggregates. This suggests that missingness is not uniformly distributed, and naive row deletion may introduce bias.", file=deadends_file)
+
+
+def remove_high_death_count(df):
+    print("\n" + "="*80, file=deadends_file)
+    print("DEAD END 2: REMOVING TOP 1% OF DEATH COUNTS AS OUTLIERS", file=deadends_file)
+    print("="*80, file=deadends_file)
+
+
+    df["Data Value"] = pd.to_numeric(df["Data Value"], errors="coerce")
+
+
+    threshold = df["Data Value"].quantile(0.99)
+
+    print(f"99th percentile threshold: {threshold:.2f}", file=deadends_file)
+
+
+    df_trimmed = df[df["Data Value"] <= threshold]
+
+    original_rows = len(df)
+    trimmed_rows = len(df_trimmed)
+
+    print(f"Original rows: {original_rows}", file=deadends_file)
+    print(f"Rows after removing top 1%: {trimmed_rows}", file=deadends_file)
+    print(f"Rows removed: {original_rows - trimmed_rows}", file=deadends_file)
+
+
+    original_mean = df["Data Value"].mean()
+    trimmed_mean = df_trimmed["Data Value"].mean()
+
+    print(f"\nOriginal mean death count: {original_mean:.2f}", file=deadends_file)
+    print(f"Mean after trimming: {trimmed_mean:.2f}", file=deadends_file)
+
+
+    state_counts_original = df["State"].value_counts(normalize=True)
+    state_counts_trimmed = df_trimmed["State"].value_counts(normalize=True)
+
+    state_shift = (state_counts_original - state_counts_trimmed).abs().sort_values(ascending=False).head(5)
+
+    print("\nTop 5 states most affected by trimming:", file=deadends_file)
+    print(state_shift, file=deadends_file)
+
+    print("\nConclusion:", file=deadends_file)
+    print("Removing the top 1 percent of death counts eliminated 42 percent of the dataset, suggesting that high values are common rather than rare anomalies. The mean changed only marginally, indicating that these values reflect structural characteristics of the data rather than isolated outliers. Therefore, trimming extreme values would distort legitimate high-impact states and is not appropriate.", file=deadends_file)
+
+
+def death_counts_in_states(df):
+    print("\n" + "="*80, file=deadends_file)
+    print("DEAD END 3: COMPARING STATES USING RAW DEATH COUNTS", file=deadends_file)
+    print("="*80, file=deadends_file)
+
+    state_totals = df.groupby("State")["Data Value"].sum().sort_values(ascending=False)
+
+    print("\nTop 5 states by total death count:", file=deadends_file)
+    print(state_totals.head(), file=deadends_file)
+
+    
+    print("\nConclusion:", file=deadends_file)
+    print("We initially attempted to aggregate state-level death counts across months. However, because the dataset contains 12-month rolling totals, summing across months results in double-counting overlapping periods. We therefore adjusted our approach to avoid naive temporal aggregation.", file=deadends_file)
+
+
+
+dropna(df)
+remove_high_death_count(df)
+death_counts_in_states(df)
+
+deadends_file.close()

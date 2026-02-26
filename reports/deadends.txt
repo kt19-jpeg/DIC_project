@@ -1,0 +1,58 @@
+
+================================================================================
+DEAD END 1: DROPPING ALL MISSING DATA VALUES
+================================================================================
+Original rows: 81270
+Rows after dropping missing Data Value: 47504
+Percentage removed: 41.55%
+
+Top 5 states most affected by dropping missing values:
+State
+US    0.016332
+FL    0.012732
+CA    0.011743
+UT    0.010824
+ME    0.010718
+Name: proportion, dtype: float64
+Conclusion: 
+
+Dropping missing Data Value entries removed 41.55% of the dataset and disproportionately altered the representation of certain states, including national-level aggregates. This suggests that missingness is not uniformly distributed, and naive row deletion may introduce bias.
+
+================================================================================
+DEAD END 2: REMOVING TOP 1% OF DEATH COUNTS AS OUTLIERS
+================================================================================
+99th percentile threshold: 949.97
+Original rows: 81270
+Rows after removing top 1%: 47028
+Rows removed: 34242
+
+Original mean death count: 242.08
+Mean after trimming: 234.66
+
+Top 5 states most affected by trimming:
+State
+US    0.016305
+FL    0.012860
+CA    0.012137
+UT    0.011126
+ME    0.011020
+Name: proportion, dtype: float64
+
+Conclusion:
+Removing the top 1 percent of death counts eliminated 42 percent of the dataset, suggesting that high values are common rather than rare anomalies. The mean changed only marginally, indicating that these values reflect structural characteristics of the data rather than isolated outliers. Therefore, trimming extreme values would distort legitimate high-impact states and is not appropriate.
+
+================================================================================
+DEAD END 3: COMPARING STATES USING RAW DEATH COUNTS
+================================================================================
+
+Top 5 states by total death count:
+State
+GA    397009.426917
+WV    390983.268489
+SC    382976.737208
+NV    382464.254612
+YC    371363.431824
+Name: Data Value, dtype: float64
+
+Conclusion:
+We initially attempted to aggregate state-level death counts across months. However, because the dataset contains 12-month rolling totals, summing across months results in double-counting overlapping periods. We therefore adjusted our approach to avoid naive temporal aggregation.

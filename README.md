@@ -55,6 +55,5 @@ The final system will:
 
 ---
 
-## Project Structure
-This repository is organized to match the end-to-end data science pipeline and the course project phases.
+
 

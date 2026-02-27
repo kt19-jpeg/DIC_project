@@ -173,98 +173,194 @@ plt.savefig(Path(__file__).parent.parent / 'reports' / 'eda_analysis.png', dpi=3
 findings_file.close()
 sys.stdout = sys.__stdout__
 
-# Redirect dead end outputs to separate file
+
+
 deadends_path = Path(__file__).parent.parent / "reports" / "deadends.txt"
-deadends_file = open(deadends_path, "w", encoding="utf-8")
-
-def dropna(df):
-   
-    print("\n" + "="*80, file=deadends_file)
-    print("DEAD END 1: DROPPING ALL MISSING DATA VALUES", file=deadends_file)
-    print("="*80, file=deadends_file)
-    original_rows = len(df)
-
-    df_dropped = df.dropna(subset=["Data Value"])
-    dropped_rows = len(df_dropped)
-
-    print(f"Original rows: {original_rows}", file=deadends_file)
-    print(f"Rows after dropping missing Data Value: {dropped_rows}", file=deadends_file)
-    print(f"Percentage removed: {((original_rows - dropped_rows) / original_rows) * 100:.2f}%", file=deadends_file)
-
-    # Compare state distribution before and after
-    state_counts_original = df["State"].value_counts(normalize=True)
-    state_counts_dropped = df_dropped["State"].value_counts(normalize=True)
-
-    state_shift = (state_counts_original - state_counts_dropped).abs().sort_values(ascending=False).head(5)
-
-    print("\nTop 5 states most affected by dropping missing values:", file=deadends_file)
-    print(state_shift, file=deadends_file)
-
-    print("Conclusion: ", file=deadends_file)
-    print("\nDropping missing Data Value entries removed 41.55% of the dataset and disproportionately altered the representation of certain states, including national-level aggregates. This suggests that missingness is not uniformly distributed, and naive row deletion may introduce bias.", file=deadends_file)
+deadends_file = open(deadends_path, "w", encoding="utf-8")  # use the Path, not a relative string
 
 
-def remove_high_death_count(df):
-    print("\n" + "="*80, file=deadends_file)
-    print("DEAD END 2: REMOVING TOP 1% OF DEATH COUNTS AS OUTLIERS", file=deadends_file)
-    print("="*80, file=deadends_file)
+def state_drug_correlation_matrix(df):
+    print("\n" + "=" * 80, file=deadends_file)
+    print("DEAD END: STATE-LEVEL DRUG TYPE CORRELATION MATRIX", file=deadends_file)
+    print("=" * 80, file=deadends_file)
 
+    print("\nHypothesis:", file=deadends_file)
+    print(
+        "We expected the correlation matrix to reveal meaningful drug-specific patterns "
+        "— which drug types cluster together, and which states share similar profiles. "
+        "If certain drugs correlate strongly, it suggests shared structural drivers "
+        "(poverty, supply chains, prescribing behavior). If they don't, it points to "
+        "distinct, drug-specific crises that would need separate analysis.",
+        file=deadends_file,
+    )
 
-    df["Data Value"] = pd.to_numeric(df["Data Value"], errors="coerce")
+    drug_indicators = [
+        "Cocaine (T40.5)",
+        "Heroin (T40.1)",
+        "Synthetic opioids, excl. methadone (T40.4)",
+        "Psychostimulants with abuse potential (T43.6)",
+        "Methadone (T40.3)",
+    ]
 
+    subset = df[df["Indicator"].isin(drug_indicators)]
+    pivot = (
+        subset.groupby(["State", "Indicator"])["Data Value"]
+        .mean()
+        .unstack("Indicator")
+    )
 
-    threshold = df["Data Value"].quantile(0.99)
+    total_states = pivot.shape[0]
+    complete_states = pivot.dropna().shape[0]
+    missing_summary = pivot.isnull().sum()
 
-    print(f"99th percentile threshold: {threshold:.2f}", file=deadends_file)
+    print(f"\nTotal states/territories in dataset: {total_states}", file=deadends_file)
+    print(f"States with complete data across all 5 drug types: {complete_states}", file=deadends_file)
+    print(f"States dropped due to missing data: {total_states - complete_states}", file=deadends_file)
 
+    print("\nMissing values per drug type (suppressed due to low counts):", file=deadends_file)
+    print(missing_summary.to_string(), file=deadends_file)
 
-    df_trimmed = df[df["Data Value"] <= threshold]
-
-    original_rows = len(df)
-    trimmed_rows = len(df_trimmed)
-
-    print(f"Original rows: {original_rows}", file=deadends_file)
-    print(f"Rows after removing top 1%: {trimmed_rows}", file=deadends_file)
-    print(f"Rows removed: {original_rows - trimmed_rows}", file=deadends_file)
-
-
-    original_mean = df["Data Value"].mean()
-    trimmed_mean = df_trimmed["Data Value"].mean()
-
-    print(f"\nOriginal mean death count: {original_mean:.2f}", file=deadends_file)
-    print(f"Mean after trimming: {trimmed_mean:.2f}", file=deadends_file)
-
-
-    state_counts_original = df["State"].value_counts(normalize=True)
-    state_counts_trimmed = df_trimmed["State"].value_counts(normalize=True)
-
-    state_shift = (state_counts_original - state_counts_trimmed).abs().sort_values(ascending=False).head(5)
-
-    print("\nTop 5 states most affected by trimming:", file=deadends_file)
-    print(state_shift, file=deadends_file)
+    print("\nCorrelation matrix (complete cases only):", file=deadends_file)
+    print(pivot.dropna().corr().round(3).to_string(), file=deadends_file)
 
     print("\nConclusion:", file=deadends_file)
-    print("Removing the top 1 percent of death counts eliminated 42 percent of the dataset, suggesting that high values are common rather than rare anomalies. The mean changed only marginally, indicating that these values reflect structural characteristics of the data rather than isolated outliers. Therefore, trimming extreme values would distort legitimate high-impact states and is not appropriate.", file=deadends_file)
+    print(
+        f"The matrix ran fine — {complete_states} out of {total_states} states had "
+        f"complete data, which is solid coverage. The problem is what the matrix "
+        f"actually showed: almost everything correlates strongly with everything else. "
+        f"Cocaine, heroin, opioids, and synthetic opioids all move together at the "
+        f"state level, producing correlations in the 0.72-0.85 range. Rather than "
+        f"revealing meaningful drug-specific patterns, the matrix is largely reflecting "
+        f"population size — bigger states have more deaths across all drug types. It "
+        f"can't tell us whether a state has a heroin problem vs a fentanyl problem vs "
+        f"a cocaine problem, because everything is high together. To make this useful "
+        f"we'd need to normalize by state population, but that data isn't in this "
+        f"dataset. Dead end.",
+        file=deadends_file,
+    )
 
 
-def death_counts_in_states(df):
-    print("\n" + "="*80, file=deadends_file)
-    print("DEAD END 3: COMPARING STATES USING RAW DEATH COUNTS", file=deadends_file)
-    print("="*80, file=deadends_file)
-
-    state_totals = df.groupby("State")["Data Value"].sum().sort_values(ascending=False)
-
-    print("\nTop 5 states by total death count:", file=deadends_file)
-    print(state_totals.head(), file=deadends_file)
-
+    print("\n" + "=" * 80, file=deadends_file)
     
+def footnote_symbol_data_quality(df):
+    print("\n" + "=" * 80, file=deadends_file)
+    print("DEAD END: FOOTNOTE SYMBOL AS A DATA QUALITY PREDICTOR", file=deadends_file)
+    print("=" * 80, file=deadends_file)
+
+    print("\nHypothesis:", file=deadends_file)
+    print(
+        "The dataset uses two footnote symbols — '**' for suppressed/low quality data "
+        "and '*' for underreported/incomplete data. We expected '**' rows to have "
+        "significantly more missing Data Values since they're explicitly flagged for "
+        "quality issues, making the symbol a useful filter for reliable records.",
+        file=deadends_file,
+    )
+
+    star_star = df[df["Footnote Symbol"] == "**"]["Data Value"].isna().mean() * 100
+    star = df[df["Footnote Symbol"] == "*"]["Data Value"].isna().mean() * 100
+
+    star_star_count = len(df[df["Footnote Symbol"] == "**"])
+    star_count = len(df[df["Footnote Symbol"] == "*"])
+
+    print(f"\n'**' rows (suppressed/quality issues): {star_star_count:,}", file=deadends_file)
+    print(f"'*'  rows (underreported/incomplete):  {star_count:,}", file=deadends_file)
+    print(f"\nMissing rate for '**' rows: {star_star:.1f}%", file=deadends_file)
+    print(f"Missing rate for '*'  rows: {star:.1f}%", file=deadends_file)
+
     print("\nConclusion:", file=deadends_file)
-    print("We initially attempted to aggregate state-level death counts across months. However, because the dataset contains 12-month rolling totals, summing across months results in double-counting overlapping periods. We therefore adjusted our approach to avoid naive temporal aggregation.", file=deadends_file)
+    print(
+        f"The symbol doesn't work as a quality filter the way we expected. '**' rows "
+        f"— flagged for suppression and quality issues — actually have a higher missing "
+        f"rate ({star_star:.1f}%) than '*' rows ({star:.1f}%), but the difference isn't "
+        f"meaningful enough to use as a filter. More importantly, ALL rows in this "
+        f"dataset carry one of these two symbols, so the footnote symbol has no "
+        f"discriminating power — it can't separate reliable records from unreliable "
+        f"ones. Dead end.",
+        file=deadends_file,
+    )
+
+
+def pending_investigation_predicts_missing(df):
+    print("\n" + "=" * 80, file=deadends_file)
+    print("DEAD END: PERCENT PENDING INVESTIGATION AS A MISSING DATA PREDICTOR", file=deadends_file)
+    print("=" * 80, file=deadends_file)
+
+    print("\nHypothesis:", file=deadends_file)
+    print(
+        "Higher 'Percent Pending Investigation' should mean less finalized data, "
+        "which should mean a higher chance of the Data Value being missing. If true, "
+        "this column could serve as a useful signal for filtering out unreliable records.",
+        file=deadends_file,
+    )
+
+    missing_pending = df[df["Data Value"].isna()]["Percent Pending Investigation"].mean()
+    present_pending = df[df["Data Value"].notna()]["Percent Pending Investigation"].mean()
+    difference = missing_pending - present_pending
+
+    print(f"\nMean pending % when Data Value IS missing:  {missing_pending:.4f}", file=deadends_file)
+    print(f"Mean pending % when Data Value is present:  {present_pending:.4f}", file=deadends_file)
+    print(f"Difference:                                  {difference:.4f}", file=deadends_file)
+
+    print("\nConclusion:", file=deadends_file)
+    print(
+        f"The relationship exists but is too weak to be useful. Records with missing "
+        f"Data Values have a mean pending rate of {missing_pending:.4f} vs {present_pending:.4f} "
+        f"for present ones — a difference of only {difference:.4f}. That's not nearly "
+        f"enough separation to use this column as a predictor or filter. The missingness "
+        f"in this dataset is driven by CDC suppression rules (counts below 10) and state "
+        f"reporting lags, not by how much is pending investigation. Dead end.",
+        file=deadends_file,
+    )
 
 
 
-dropna(df)
-remove_high_death_count(df)
-death_counts_in_states(df)
+def puerto_rico_trend_analysis(df):
+    print("\n" + "=" * 80, file=deadends_file)
+    print("DEAD END: PUERTO RICO AS A COMPARATIVE CASE STUDY", file=deadends_file)
+    print("=" * 80, file=deadends_file)
+
+    print("\nHypothesis:", file=deadends_file)
+    print(
+        "Puerto Rico is included in the dataset alongside US states. Given its distinct "
+        "healthcare infrastructure, geography, and demographics, we expected it to show "
+        "meaningfully different drug death patterns — making it an interesting comparative "
+        "case against mainland states.",
+        file=deadends_file,
+    )
+
+    pr = df[df["State"] == "PR"]
+    total_rows = len(pr)
+    missing_count = pr["Data Value"].isna().sum()
+    missing_pct = missing_count / total_rows * 100
+
+    missing_by_indicator = pr.groupby("Indicator")["Data Value"].apply(
+        lambda x: f"{x.isna().sum()}/{len(x)} missing ({x.isna().mean()*100:.0f}%)"
+    )
+
+    print(f"\nPuerto Rico total records: {total_rows:,}", file=deadends_file)
+    print(f"Missing Data Values: {missing_count:,} ({missing_pct:.1f}%)", file=deadends_file)
+
+    print("\nMissing rate by drug indicator:", file=deadends_file)
+    print(missing_by_indicator.to_string(), file=deadends_file)
+
+    print("\nConclusion:", file=deadends_file)
+    print(
+        f"Puerto Rico has {missing_pct:.1f}% of its Data Values missing — the highest "
+        f"of any state or territory in the dataset. Drug-specific indicators are "
+        f"especially bad: heroin is 91% missing, psychostimulants 92% missing. "
+        f"Ironically, 'Number of Deaths' is 100% missing for PR while 'Number of Drug "
+        f"Overdose Deaths' is fully present — meaning even the basic totals are "
+        f"inconsistent. There simply isn't enough granular data on Puerto Rico to use "
+        f"it as a comparative case. Dead end.",
+        file=deadends_file,
+    )
+
+state_drug_correlation_matrix(df)
+footnote_symbol_data_quality(df)
+pending_investigation_predicts_missing(df)
+
+
+puerto_rico_trend_analysis(df)
 
 deadends_file.close()
+print("Done — check deadends.txt")

@@ -40,17 +40,6 @@ Why It's a Dead End
 The relationship exists but is way too weak to be useful. A difference of 0.07 percentage points offers no real separation. The missingness in this dataset is driven by CDC suppression rules (counts below 10 are withheld for privacy) and state reporting lags - not by how much is pending investigation. The pending column can't predict whether a record will have data.
 
 
-4. Puerto Rico as a Comparative Case Study
-Dead End: Puerto Rico as a Comparative Case Study
-Hypothesis
-Puerto Rico is included alongside US states in the dataset. Given its distinct healthcare infrastructure, geography, and demographics, we expected it to show meaningfully different drug death patterns - making it a useful comparison against mainland states.
-What We Did
-Filtered to PR rows and checked Data Value missingness overall and broken down by each of the 12 drug indicators.
-Result
-Puerto Rico has 61.2% of its Data Values missing - the highest of any state or territory. By indicator: heroin 91% missing, psychostimulants 92% missing, methadone 84% missing. Most drug-specific indicators are 61%+ missing. Strangely, 'Number of Deaths' is 100% missing while 'Number of Drug Overdose Deaths' is 0% missing.
-Why It's a Dead End
-There simply isn't enough granular data on Puerto Rico to use it analytically. The only complete indicators are broad totals, which aren't specific enough for any meaningful comparison. The inconsistency between 'Number of Deaths' (fully absent) and 'Number of Drug Overdose Deaths' (fully present) also raises questions about how PR data was collected vs mainland states.
-
 Summary
 Across all five dead ends, two recurring themes emerged:
 

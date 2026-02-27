@@ -56,4 +56,9 @@ The final system will:
 ---
 
 
+## Refrences
 
+Seth P, Baldwin GT, Davis NL, Jones CM. Clarifying CDC's Efforts to Quantify Overdose Deaths. Public Health Rep. 2023 Sep-Oct;138(5):721-726. doi: 10.1177/00333549221123586. Epub 2022 Oct 1. PMID: 36184930; PMCID: PMC10467501.
+
+
+https://journals.sagepub.com/doi/10.1177/19427891251401921

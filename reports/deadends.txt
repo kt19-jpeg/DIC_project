@@ -1,58 +1,91 @@
 
 ================================================================================
-DEAD END 1: DROPPING ALL MISSING DATA VALUES
+DEAD END: STATE-LEVEL DRUG TYPE CORRELATION MATRIX
 ================================================================================
-Original rows: 81270
-Rows after dropping missing Data Value: 47504
-Percentage removed: 41.55%
 
-Top 5 states most affected by dropping missing values:
-State
-US    0.016332
-FL    0.012732
-CA    0.011743
-UT    0.010824
-ME    0.010718
-Name: proportion, dtype: float64
-Conclusion: 
+Hypothesis:
+We expected the correlation matrix to reveal meaningful drug-specific patterns — which drug types cluster together, and which states share similar profiles. If certain drugs correlate strongly, it suggests shared structural drivers (poverty, supply chains, prescribing behavior). If they don't, it points to distinct, drug-specific crises that would need separate analysis.
 
-Dropping missing Data Value entries removed 41.55% of the dataset and disproportionately altered the representation of certain states, including national-level aggregates. This suggests that missingness is not uniformly distributed, and naive row deletion may introduce bias.
+Total states/territories in dataset: 52
+States with complete data across all 5 drug types: 46
+States dropped due to missing data: 6
 
-================================================================================
-DEAD END 2: REMOVING TOP 1% OF DEATH COUNTS AS OUTLIERS
-================================================================================
-99th percentile threshold: 949.97
-Original rows: 81270
-Rows after removing top 1%: 47028
-Rows removed: 34242
+Missing values per drug type (suppressed due to low counts):
+Indicator
+Cocaine (T40.5)                                  3
+Heroin (T40.1)                                   1
+Methadone (T40.3)                                3
+Psychostimulants with abuse potential (T43.6)    2
+Synthetic opioids, excl. methadone (T40.4)       4
 
-Original mean death count: 242.08
-Mean after trimming: 234.66
-
-Top 5 states most affected by trimming:
-State
-US    0.016305
-FL    0.012860
-CA    0.012137
-UT    0.011126
-ME    0.011020
-Name: proportion, dtype: float64
+Correlation matrix (complete cases only):
+Indicator                                      Cocaine (T40.5)  Heroin (T40.1)  Methadone (T40.3)  Psychostimulants with abuse potential (T43.6)  Synthetic opioids, excl. methadone (T40.4)
+Indicator                                                                                                                                                                                   
+Cocaine (T40.5)                                          1.000           0.821              0.765                                          0.296                                       0.717
+Heroin (T40.1)                                           0.821           1.000              0.849                                          0.288                                       0.434
+Methadone (T40.3)                                        0.765           0.849              1.000                                          0.179                                       0.455
+Psychostimulants with abuse potential (T43.6)            0.296           0.288              0.179                                          1.000                                       0.516
+Synthetic opioids, excl. methadone (T40.4)               0.717           0.434              0.455                                          0.516                                       1.000
 
 Conclusion:
-Removing the top 1 percent of death counts eliminated 42 percent of the dataset, suggesting that high values are common rather than rare anomalies. The mean changed only marginally, indicating that these values reflect structural characteristics of the data rather than isolated outliers. Therefore, trimming extreme values would distort legitimate high-impact states and is not appropriate.
+The matrix ran fine — 46 out of 52 states had complete data, which is solid coverage. The problem is what the matrix actually showed: almost everything correlates strongly with everything else. Cocaine, heroin, opioids, and synthetic opioids all move together at the state level, producing correlations in the 0.72-0.85 range. Rather than revealing meaningful drug-specific patterns, the matrix is largely reflecting population size — bigger states have more deaths across all drug types. It can't tell us whether a state has a heroin problem vs a fentanyl problem vs a cocaine problem, because everything is high together. To make this useful we'd need to normalize by state population, but that data isn't in this dataset. Dead end.
 
 ================================================================================
-DEAD END 3: COMPARING STATES USING RAW DEATH COUNTS
+
+================================================================================
+DEAD END: FOOTNOTE SYMBOL AS A DATA QUALITY PREDICTOR
 ================================================================================
 
-Top 5 states by total death count:
-State
-GA    397009.426917
-WV    390983.268489
-SC    382976.737208
-NV    382464.254612
-YC    371363.431824
-Name: Data Value, dtype: float64
+Hypothesis:
+The dataset uses two footnote symbols — '**' for suppressed/low quality data and '*' for underreported/incomplete data. We expected '**' rows to have significantly more missing Data Values since they're explicitly flagged for quality issues, making the symbol a useful filter for reliable records.
+
+'**' rows (suppressed/quality issues): 68,040
+'*'  rows (underreported/incomplete):  13,230
+
+Missing rate for '**' rows: 42.9%
+Missing rate for '*'  rows: 34.7%
 
 Conclusion:
-We initially attempted to aggregate state-level death counts across months. However, because the dataset contains 12-month rolling totals, summing across months results in double-counting overlapping periods. We therefore adjusted our approach to avoid naive temporal aggregation.
+The symbol doesn't work as a quality filter the way we expected. '**' rows — flagged for suppression and quality issues — actually have a higher missing rate (42.9%) than '*' rows (34.7%), but the difference isn't meaningful enough to use as a filter. More importantly, ALL rows in this dataset carry one of these two symbols, so the footnote symbol has no discriminating power — it can't separate reliable records from unreliable ones. Dead end.
+
+================================================================================
+DEAD END: PERCENT PENDING INVESTIGATION AS A MISSING DATA PREDICTOR
+================================================================================
+
+Hypothesis:
+Higher 'Percent Pending Investigation' should mean less finalized data, which should mean a higher chance of the Data Value being missing. If true, this column could serve as a useful signal for filtering out unreliable records.
+
+Mean pending % when Data Value IS missing:  0.1804
+Mean pending % when Data Value is present:  0.1140
+Difference:                                  0.0664
+
+Conclusion:
+The relationship exists but is too weak to be useful. Records with missing Data Values have a mean pending rate of 0.1804 vs 0.1140 for present ones — a difference of only 0.0664. That's not nearly enough separation to use this column as a predictor or filter. The missingness in this dataset is driven by CDC suppression rules (counts below 10) and state reporting lags, not by how much is pending investigation. Dead end.
+
+================================================================================
+DEAD END: PUERTO RICO AS A COMPARATIVE CASE STUDY
+================================================================================
+
+Hypothesis:
+Puerto Rico is included in the dataset alongside US states. Given its distinct healthcare infrastructure, geography, and demographics, we expected it to show meaningfully different drug death patterns — making it an interesting comparative case against mainland states.
+
+Puerto Rico total records: 1,548
+Missing Data Values: 948 (61.2%)
+
+Missing rate by drug indicator:
+Indicator
+Cocaine (T40.5)                                                                  79/129 missing (61%)
+Heroin (T40.1)                                                                  118/129 missing (91%)
+Methadone (T40.3)                                                               108/129 missing (84%)
+Natural & semi-synthetic opioids (T40.2)                                         79/129 missing (61%)
+Natural & semi-synthetic opioids, incl. methadone (T40.2, T40.3)                 79/129 missing (61%)
+Natural, semi-synthetic, & synthetic opioids, incl. methadone (T40.2-T40.4)      79/129 missing (61%)
+Number of Deaths                                                               129/129 missing (100%)
+Number of Drug Overdose Deaths                                                     0/129 missing (0%)
+Opioids (T40.0-T40.4,T40.6)                                                      79/129 missing (61%)
+Percent with drugs specified                                                       0/129 missing (0%)
+Psychostimulants with abuse potential (T43.6)                                   119/129 missing (92%)
+Synthetic opioids, excl. methadone (T40.4)                                       79/129 missing (61%)
+
+Conclusion:
+Puerto Rico has 61.2% of its Data Values missing — the highest of any state or territory in the dataset. Drug-specific indicators are especially bad: heroin is 91% missing, psychostimulants 92% missing. Ironically, 'Number of Deaths' is 100% missing for PR while 'Number of Drug Overdose Deaths' is fully present — meaning even the basic totals are inconsistent. There simply isn't enough granular data on Puerto Rico to use it as a comparative case. Dead end.

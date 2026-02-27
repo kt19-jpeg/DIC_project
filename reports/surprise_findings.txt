@@ -1,10 +1,18 @@
+
+
 2.7 Surprise Findings
 
-Surprise 1: High Impact of Missing Data
-Dropping rows with missing Data Value removed over 40% of the dataset and significantly altered state representation. This was unexpected and revealed that missingness is not trivial or random. In public health surveillance data, missing values may reflect suppression or reporting delays rather than absence of events. This changed our approach to retain missing values rather than apply naive deletion.
+Surprise Finding 1: Drug Correlations Reflected Population Size, Not Drug-Specific Patterns
 
-Surprise 2: Extreme Values Are Structural, Not Anomalies
-Removing the top 1% of death counts eliminated over 40% of observations, indicating that high values are common rather than rare outliers. This reflects real concentration of overdose burden in certain states. We therefore avoided trimming high values and preserved the natural distribution.
+We expected different drug types to exhibit distinct state-level patterns. However, the correlation matrix showed strong correlations across most substances (0.72–0.85 range)  ￼. Rather than revealing unique drug-specific dynamics, the correlations largely reflected population size — larger states had higher death counts across all substances. This shifted our understanding that raw counts obscure structural differences and that per-capita normalization would be required to isolate substance-specific trends.
 
-Surprise 3: Rolling Totals Cannot Be Aggregated Naively
-We initially attempted to aggregate death counts across months, but discovered that the dataset contains overlapping 12-month rolling totals. Summing across months results in double-counting. This structural property changed our analytical approach and reinforced the need to respect the rolling-window design of surveillance data.
+
+
+Surprise Finding 2: Indicator Definitions Overlap, Making Rankings Structurally Invalid
+
+We attempted to rank drug indicators by national average death count to determine which substances were most harmful. However, many indicators are nested within broader ICD code categories (e.g., heroin and methadone are included within “Opioids”)  ￼. This means categories are not mutually exclusive, and direct comparisons result in double counting. What appeared to be a straightforward ranking exercise turned out to be structurally invalid. This changed our approach by forcing us to treat indicators as overlapping classifications rather than independent categories.
+
+
+Surprise Finding 3: Puerto Rico Lacks Sufficient Granular Data for Comparative Analysis
+
+We initially considered Puerto Rico as a compelling comparative case due to its distinct healthcare system and demographics. However, 61.2% of Puerto Rico’s Data Values are missing  ￼, with certain drug indicators missing over 90% of observations (e.g., heroin 91%, psychostimulants 92%)  ￼. Notably, “Number of Deaths” is 100% missing while “Number of Drug Overdose Deaths” is fully present  ￼, revealing structural inconsistency in reporting. This surprised us and led to the conclusion that Puerto Rico cannot be reliably used for granular state-level comparison in this dataset.

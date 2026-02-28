@@ -314,53 +314,14 @@ def pending_investigation_predicts_missing(df):
 
 
 
-def puerto_rico_trend_analysis(df):
-    print("\n" + "=" * 80, file=deadends_file)
-    print("DEAD END: PUERTO RICO AS A COMPARATIVE CASE STUDY", file=deadends_file)
-    print("=" * 80, file=deadends_file)
 
-    print("\nHypothesis:", file=deadends_file)
-    print(
-        "Puerto Rico is included in the dataset alongside US states. Given its distinct "
-        "healthcare infrastructure, geography, and demographics, we expected it to show "
-        "meaningfully different drug death patterns — making it an interesting comparative "
-        "case against mainland states.",
-        file=deadends_file,
-    )
-
-    pr = df[df["State"] == "PR"]
-    total_rows = len(pr)
-    missing_count = pr["Data Value"].isna().sum()
-    missing_pct = missing_count / total_rows * 100
-
-    missing_by_indicator = pr.groupby("Indicator")["Data Value"].apply(
-        lambda x: f"{x.isna().sum()}/{len(x)} missing ({x.isna().mean()*100:.0f}%)"
-    )
-
-    print(f"\nPuerto Rico total records: {total_rows:,}", file=deadends_file)
-    print(f"Missing Data Values: {missing_count:,} ({missing_pct:.1f}%)", file=deadends_file)
-
-    print("\nMissing rate by drug indicator:", file=deadends_file)
-    print(missing_by_indicator.to_string(), file=deadends_file)
-
-    print("\nConclusion:", file=deadends_file)
-    print(
-        f"Puerto Rico has {missing_pct:.1f}% of its Data Values missing — the highest "
-        f"of any state or territory in the dataset. Drug-specific indicators are "
-        f"especially bad: heroin is 91% missing, psychostimulants 92% missing. "
-        f"Ironically, 'Number of Deaths' is 100% missing for PR while 'Number of Drug "
-        f"Overdose Deaths' is fully present — meaning even the basic totals are "
-        f"inconsistent. There simply isn't enough granular data on Puerto Rico to use "
-        f"it as a comparative case. Dead end.",
-        file=deadends_file,
-    )
 
 state_drug_correlation_matrix(df)
 footnote_symbol_data_quality(df)
 pending_investigation_predicts_missing(df)
 
 
-puerto_rico_trend_analysis(df)
+
 
 deadends_file.close()
 print("Done — check deadends.txt")

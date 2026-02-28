@@ -55,6 +55,22 @@ The final system will:
 
 ---
 
+## Quick Setup for reproducibility
+
+```bash
+# 1. Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate      # Mac/Linux
+venv\Scripts\activate         # Windows
+
+# 2. Install dependencies (after you create requirements.txt)
+pip install -r requirements.txt
+
+# Files to run
+run data_findings.py with changing the relative path accordingly
+
+run data_clean.py for cleaning the data , have also attached notebook for reference which does the same cleaning process as .py file
+
 
 ## Refrences
 

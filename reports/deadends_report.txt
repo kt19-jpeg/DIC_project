@@ -1,0 +1,47 @@
+﻿DIC Project - Dead Ends Report
+Internal summary for team review  |  Phase 1 EDA
+Dataset: CDC VSRR Provisional Drug Overdose Death Counts (2015-2025)
+Overview
+During EDA, we explored several analytical directions that seemed promising based on the dataset structure but ultimately didn't yield usable results. This document captures those attempts - what we tried, what came back, and why we moved on. It's worth documenting these so we don't revisit them and so the graders can see the reasoning behind our methodology choices.
+The dataset has 81,270 records across 54 states/territories, 12 drug indicators, and 11 years (2015-2025). All values are 12-month rolling totals. Two columns have notable missingness: Predicted Value (35% missing) and Data Value (18% missing).
+
+Dead Ends
+1. State-Level Drug Type Correlation Matrix
+Dead End: State-Level Drug Type Correlation Matrix
+Hypothesis
+We expected a correlation matrix across drug types at the state level to reveal which substances cluster together and which states share similar drug death profiles. High correlations would suggest shared structural drivers like poverty or supply chains; low ones would point to drug-specific crises needing separate analysis.
+What We Did
+Built a pivot table of average death counts per state per drug type (5 indicators: cocaine, heroin, methadone, psychostimulants, synthetic opioids), then computed a Pearson correlation matrix on complete cases only.
+Result
+46 out of 52 states had complete data. The correlation matrix showed almost everything correlated strongly with everything else - cocaine vs heroin: 0.821, heroin vs methadone: 0.849, cocaine vs synthetic opioids: 0.717. Psychostimulants were the only weak correlator (0.18-0.52 range).
+Why It's a Dead End
+The high correlations aren't revealing a real pattern - they're just reflecting population size. Bigger states have more deaths across all drug types. The matrix can't tell us whether a state has a heroin problem vs a fentanyl problem because everything is uniformly high. To make this meaningful we'd need to normalize by state population, but that data isn't in this dataset.
+
+2. Footnote Symbol as a Data Quality Filter
+Dead End: Footnote Symbol as a Data Quality Predictor
+Hypothesis
+The dataset has two footnote symbols: '**' for suppressed/low quality records and '*' for underreported/incomplete ones. We figured '**' rows would have significantly more missing Data Values, making the symbol a useful way to filter out unreliable records.
+What We Did
+Checked the missing rate for Data Value split by footnote symbol - counted rows per symbol type and computed the percentage missing in each group.
+Result
+'**' rows: 68,040 records, 42.9% missing. '*' rows: 13,230 records, 34.7% missing. The '**' group does have a higher missing rate, but the gap is only 8 percentage points.
+Why It's a Dead End
+The difference is too small to use as a filter. More critically, every single row in the dataset carries one of these two symbols - there are no rows without a footnote. So the symbol has zero discriminating power. It can't separate reliable records from unreliable ones because it's applied universally.
+
+3. Percent Pending Investigation as a Missing Data Predictor
+Dead End: Percent Pending Investigation as a Missing Data Predictor
+Hypothesis
+Higher pending investigation percentage should mean less finalized data, which should mean the Data Value is more likely to be missing. If this held, the column could serve as a useful signal for filtering out incomplete records.
+What We Did
+Split the dataset into rows where Data Value is missing vs present, then compared the mean Percent Pending Investigation for each group.
+Result
+Mean pending % when Data Value is missing: 0.1804. Mean pending % when Data Value is present: 0.1140. Difference: 0.0664.
+Why It's a Dead End
+The relationship exists but is way too weak to be useful. A difference of 0.07 percentage points offers no real separation. The missingness in this dataset is driven by CDC suppression rules (counts below 10 are withheld for privacy) and state reporting lags - not by how much is pending investigation. The pending column can't predict whether a record will have data.
+
+
+Summary
+Across all five dead ends, two recurring themes emerged:
+
+1. The dataset's missingness is structural, not random. It's driven by CDC privacy suppression rules (counts below 10 are withheld) and state reporting lags - not by any column we can easily use as a quality filter. Neither the footnote symbol nor the pending investigation percentage reliably predicts whether a record will have data.
+2. The indicators overlap heavily, which makes cross-indicator comparisons misleading without careful scoping. Any analysis that mixes parent and child indicators (e.g. Opioids and Heroin together) risks double counting and needs to be scoped to a specific, non-overlapping set.

@@ -62,30 +62,3 @@ Difference:                                  0.0664
 Conclusion:
 The relationship exists but is too weak to be useful. Records with missing Data Values have a mean pending rate of 0.1804 vs 0.1140 for present ones — a difference of only 0.0664. That's not nearly enough separation to use this column as a predictor or filter. The missingness in this dataset is driven by CDC suppression rules (counts below 10) and state reporting lags, not by how much is pending investigation. Dead end.
 
-================================================================================
-DEAD END: PUERTO RICO AS A COMPARATIVE CASE STUDY
-================================================================================
-
-Hypothesis:
-Puerto Rico is included in the dataset alongside US states. Given its distinct healthcare infrastructure, geography, and demographics, we expected it to show meaningfully different drug death patterns — making it an interesting comparative case against mainland states.
-
-Puerto Rico total records: 1,548
-Missing Data Values: 948 (61.2%)
-
-Missing rate by drug indicator:
-Indicator
-Cocaine (T40.5)                                                                  79/129 missing (61%)
-Heroin (T40.1)                                                                  118/129 missing (91%)
-Methadone (T40.3)                                                               108/129 missing (84%)
-Natural & semi-synthetic opioids (T40.2)                                         79/129 missing (61%)
-Natural & semi-synthetic opioids, incl. methadone (T40.2, T40.3)                 79/129 missing (61%)
-Natural, semi-synthetic, & synthetic opioids, incl. methadone (T40.2-T40.4)      79/129 missing (61%)
-Number of Deaths                                                               129/129 missing (100%)
-Number of Drug Overdose Deaths                                                     0/129 missing (0%)
-Opioids (T40.0-T40.4,T40.6)                                                      79/129 missing (61%)
-Percent with drugs specified                                                       0/129 missing (0%)
-Psychostimulants with abuse potential (T43.6)                                   119/129 missing (92%)
-Synthetic opioids, excl. methadone (T40.4)                                       79/129 missing (61%)
-
-Conclusion:
-Puerto Rico has 61.2% of its Data Values missing — the highest of any state or territory in the dataset. Drug-specific indicators are especially bad: heroin is 91% missing, psychostimulants 92% missing. Ironically, 'Number of Deaths' is 100% missing for PR while 'Number of Drug Overdose Deaths' is fully present — meaning even the basic totals are inconsistent. There simply isn't enough granular data on Puerto Rico to use it as a comparative case. Dead end.

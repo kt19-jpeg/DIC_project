@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import sys
 from typing import Dict, List
 
 import pandas as pd
+from tqdm import tqdm
 
-from artifacts import write_json, write_text
+from artifacts import ensure_results_dir, write_json, write_text
 from data_prep import build_supervised_features, get_feature_target_frames, load_clean_dataset
 from evaluation import rank_models, regression_metrics
 from modeling import get_model_pipelines
@@ -26,6 +28,9 @@ def _prediction_frame(
 
 
 def run_training_pipeline() -> None:
+    output_dir = ensure_results_dir()
+    print(f"Saving training results to: {output_dir}")
+
     df = load_clean_dataset()
     df_model = build_supervised_features(df)
     split = temporal_train_val_test_split(df_model)
@@ -45,7 +50,17 @@ def run_training_pipeline() -> None:
     metrics_rows: List[Dict[str, float]] = []
     predictions: Dict[str, Dict[str, List[Dict[str, object]]]] = {}
 
-    for model_name, pipeline in models.items():
+    model_items = list(models.items())
+    progress = tqdm(
+        model_items,
+        desc="Training models",
+        unit="model",
+        file=sys.stdout,
+        dynamic_ncols=True,
+    )
+
+    for model_name, pipeline in progress:
+        progress.set_description(f"Training {model_name}")
         pipeline.fit(X_train, y_train)
 
         val_pred = pipeline.predict(X_val)
@@ -70,6 +85,8 @@ def run_training_pipeline() -> None:
             "validation": _prediction_frame(df_model, split.val_mask, y_val, val_pred),
             "test": _prediction_frame(df_model, split.test_mask, y_test, test_pred),
         }
+
+        progress.set_postfix(val_rmse=f"{val_scores['rmse']:.3f}")
 
     ranked_metrics = rank_models(metrics_rows)
     best_model_name = ranked_metrics[0]["model"]

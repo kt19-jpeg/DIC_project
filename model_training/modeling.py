@@ -78,7 +78,7 @@ def get_model_pipelines() -> Dict[str, Pipeline]:
                         n_estimators=300,
                         min_samples_leaf=2,
                         random_state=RANDOM_STATE,
-                        n_jobs=-1,
+                        n_jobs=1,
                     ),
                 ),
             ]

@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Dict
 
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+from sklearn.ensemble import GradientBoostingRegressor, RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
@@ -83,15 +83,15 @@ def get_model_pipelines() -> Dict[str, Pipeline]:
                 ),
             ]
         ),
-        "hist_gradient_boosting": Pipeline(
+        "gradient_boosting": Pipeline(
             steps=[
                 ("preprocessor", tree_preprocessor),
                 (
                     "model",
-                    HistGradientBoostingRegressor(
+                    GradientBoostingRegressor(
                         max_depth=8,
                         learning_rate=0.05,
-                        max_iter=450,
+                        n_estimators=450,
                         random_state=RANDOM_STATE,
                     ),
                 ),

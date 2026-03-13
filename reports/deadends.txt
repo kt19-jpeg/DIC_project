@@ -61,4 +61,3 @@ Difference:                                  0.0664
 
 Conclusion:
 The relationship exists but is too weak to be useful. Records with missing Data Values have a mean pending rate of 0.1804 vs 0.1140 for present ones — a difference of only 0.0664. That's not nearly enough separation to use this column as a predictor or filter. The missingness in this dataset is driven by CDC suppression rules (counts below 10) and state reporting lags, not by how much is pending investigation. Dead end.
-

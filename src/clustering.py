@@ -20,8 +20,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import os
+import pickle
 
-OUTPUT_DIR = '/Users/kavyansh/DIC_project/reports'
+
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 # ───────── STYLING ─────────
@@ -160,10 +161,28 @@ result_df.sort_values('Cluster').reset_index(drop=True).to_csv(
     f'{OUTPUT_DIR}/cluster_assignments.csv', index=False
 )
 print(f"\n✓ cluster_assignments.csv")
+# ───────── SAVE KMEANS MODEL ─────────
+model_data = {
+    'kmeans': km_final,
+    'scaler': StandardScaler().fit(X),
+    'feature_names': features.columns[1:].tolist(),
+    'state_names': state_names.tolist(),
+    'cluster_labels': cluster_labels.tolist(),
+    'label_names': label_names,
+    'best_k': best_k,
+}
 
+with open(f'{OUTPUT_DIR}/kmeans_model.pkl', 'wb') as f:
+    pickle.dump(model_data, f)
+print(f"✓ kmeans_model.pkl")
 # ───────── PCA ─────────
 pca = PCA(n_components=2)
 X_pca = pca.fit_transform(X_scaled)
+
+# Save PCA as well for future use
+with open(f'{OUTPUT_DIR}/pca_model.pkl', 'wb') as f:
+    pickle.dump(pca, f)
+print(f"✓ pca_model.pkl")
 
 # ───────── PLOT 1: ELBOW + SILHOUETTE ─────────
 def styled_ax(ax):
@@ -491,3 +510,15 @@ plt.savefig(f'{OUTPUT_DIR}/06_year_trend_by_cluster.png', dpi=150, bbox_inches='
 plt.close()
 print("✓ 06_year_trend_by_cluster.png\n")
 print(f"All outputs saved to: {OUTPUT_DIR}")
+print(f"\nData Files:")
+print(f"  - cluster_assignments.csv (state-to-cluster mapping)")
+print(f"\nModel Files:")
+print(f"  - kmeans_model.pkl        (fitted KMeans + scaler + metadata)")
+print(f"  - pca_model.pkl           (PCA transformer)")
+print(f"\nVisualization Files:")
+print(f"  - 01_elbow_silhouette.png (K selection metrics)")
+print(f"  - 02_clustering_pca.png   (2D PCA scatter with state labels)")
+print(f"  - 03_cluster_profiles.png (drug type breakdown per cluster)")
+print(f"  - 04_us_clustering_map.html (interactive US geographical heatmap)")
+print(f"  - 05_state_summary.png    (cluster summary with state counts)")
+print(f"  - 06_year_trend_by_cluster.png (year-wise trend analysis)")

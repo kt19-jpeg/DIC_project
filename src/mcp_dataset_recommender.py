@@ -1,491 +1,524 @@
 """
-MCP Dataset Recommender — Streamlit App
-Phase 2 Deliverable: MCP Deployment Demo
+Drug Overdose Deaths — K-Means Clustering Analysis
+The raw 'Death Count' is a 12-month ROLLING SUM. We unroll it:
+    actual_monthly(t) = rolling(t) - rolling(t - 12 months)
 
-Uses Claude API + web_search tool (MCP) to find real datasets
-that can be joined with the US Drug Overdose Deaths dataset.
-
-Run:
-    pip install streamlit anthropic
-    streamlit run mcp_dataset_recommender.py
+FIX: Large states (CA, TX, FL, OH, PA, NY etc.) have NaN for the
+"Number of Drug Overdose Deaths" total indicator. The fix is to use
+the SUM of 6 base drug-specific indicators per state per month,
+which gives coverage for all 50 states.
 """
 
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.decomposition import PCA
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
 import os
-from pathlib import Path
-from dotenv import load_dotenv
-
-# Load environment variables at module startup
-load_dotenv(dotenv_path=Path(__file__).parent / ".env")
-
-import streamlit as st
-import anthropic
-import json
-import time
+import pickle
 
 
-# ─────────────────────────────────────────────
-# PAGE CONFIG
-# ─────────────────────────────────────────────
-st.set_page_config(
-    page_title="MCP Dataset Recommender",
-    page_icon="🔍",
-    layout="wide",
-    initial_sidebar_state="expanded",
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# ───────── STYLING ─────────
+COLORS = {'gold': '#FFD700', 'red': '#FF6B6B', 'cyan': '#00D4FF'}
+THEME = {'dark': '#0D1117', 'card': '#1A1A2E', 'text': '#CCCCCC', 'accent': '#AAAAAA'}
+
+# ───────── LOAD & PREPROCESS ─────────
+processed_data_path = '/Users/kavyansh/DIC_project/data/processed/cleaned_drug_overdose_deaths.csv'
+df = pd.read_csv(processed_data_path)
+df['Death Count'] = pd.to_numeric(df['Death Count'], errors='coerce')
+df['Date'] = pd.to_datetime(df['Date'])
+df = df.sort_values(['State Name', 'Indicator', 'Date'])
+
+# Unroll 12-month rolling sum → actual monthly deaths
+df['Actual Monthly Deaths'] = (
+    df.groupby(['State Name', 'Indicator'])['Death Count']
+    .transform(lambda s: s - s.shift(12))
+)
+df_actual = df.dropna(subset=['Actual Monthly Deaths'])
+df_actual = df_actual[df_actual['Actual Monthly Deaths'] >= 0].copy()
+
+
+print(f"Dataset: {df.shape[0]} records | {df['State Name'].nunique()} states | "
+      f"{df['Date'].min().date()} to {df['Date'].max().date()}")
+
+# ───────── BASE INDICATORS (no double-counting) ─────────
+# These 6 are mutually exclusive drug categories.
+# Do NOT use combined/rollup indicators like "Opioids (T40.0-T40.4,T40.6)"
+# as they overlap with the individual ones and inflate counts.
+BASE_INDICATORS = [
+    'Cocaine (T40.5)',
+    'Heroin (T40.1)',
+    'Methadone (T40.3)',
+    'Natural & semi-synthetic opioids (T40.2)',
+    'Synthetic opioids, excl. methadone (T40.4)',
+    'Psychostimulants with abuse potential (T43.6)',
+]
+df_base = df_actual[df_actual['Indicator'].isin(BASE_INDICATORS)].copy()
+
+# ── State-level monthly total (sum across all 6 drug types) ──
+state_monthly = (
+    df_base.groupby(['State Name', 'Date'])['Actual Monthly Deaths']
+    .sum().reset_index()
 )
 
-# ─────────────────────────────────────────────
-# STYLING
-# ─────────────────────────────────────────────
-st.markdown("""
-<style>
-    /* Main background */
-    .stApp { background-color: #0D1117; }
-    .block-container { padding-top: 2rem; }
+# ── Per-state average monthly deaths (covers ALL states with any data) ──
+state_avg_all = (
+    state_monthly.groupby('State Name')['Actual Monthly Deaths']
+    .mean().reset_index()
+)
+state_avg_all.columns = ['State Name', 'Avg Monthly Deaths (All States)']
 
-    /* Sidebar */
-    [data-testid="stSidebar"] { background-color: #1A1A2E; border-right: 1px solid #2a2a4a; }
-    [data-testid="stSidebar"] * { color: #CCCCCC !important; }
+# ── Trend slope per state ──
+def compute_trend(group):
+    group = group.sort_values('Date')
+    if len(group) < 6:
+        return np.nan
+    slope, _ = np.polyfit(np.arange(len(group)), group['Actual Monthly Deaths'].values, 1)
+    return slope
 
-    /* Headers */
-    h1 { color: #00D4FF !important; font-size: 1.8rem !important; }
-    h2 { color: #FFFFFF !important; }
-    h3 { color: #00D4FF !important; }
+state_trend_all = (
+    state_monthly.groupby('State Name')
+    .apply(compute_trend)
+    .reset_index()
+)
+state_trend_all.columns = ['State Name', 'Trend Slope (All States)']
 
-    /* Text */
-    p, li, .stMarkdown { color: #CCCCCC !important; }
+# ───────── CLUSTERING FEATURES ─────────
+# Use the same base indicators as a pivot for clustering features
+pivot = (
+    df_base.groupby(['State Name', 'Indicator'])['Actual Monthly Deaths']
+    .mean().unstack(fill_value=0).reset_index()
+)
+features = pivot.merge(state_trend_all, on='State Name', how='left').dropna()
+features = features.rename(columns={'Trend Slope (All States)': 'Trend Slope'})
 
-    /* Metric cards */
-    [data-testid="stMetric"] {
-        background: #1A1A2E;
-        border: 1px solid #2a2a4a;
-        border-radius: 10px;
-        padding: 1rem;
-    }
-    [data-testid="stMetricLabel"] { color: #888 !important; font-size: 0.75rem !important; }
-    [data-testid="stMetricValue"] { color: #00D4FF !important; font-size: 1.6rem !important; }
+state_names = features['State Name'].values
+X = features.drop('State Name', axis=1).values
+X_scaled = StandardScaler().fit_transform(X)
+print(f"Features: {features.shape[0]} states × {features.shape[1]-1} indicators\n")
 
-    /* Expander */
-    [data-testid="stExpander"] {
-        background: #1A1A2E;
-        border: 1px solid #2a2a4a;
-        border-radius: 10px;
-    }
-    .streamlit-expanderHeader { color: #FFFFFF !important; font-weight: 600 !important; }
+# ───────── FIND OPTIMAL K ─────────
+K_range = range(2, 9)
+inertias, silhouettes = [], []
+print("K-selection scores:")
+for k in K_range:
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels = km.fit_predict(X_scaled)
+    inertias.append(km.inertia_)
+    sil = silhouette_score(X_scaled, labels)
+    silhouettes.append(sil)
+    print(f"  K={k} | Inertia: {km.inertia_:.1f} | Silhouette: {sil:.3f}")
 
-    /* Buttons */
-    .stButton > button {
-        background: linear-gradient(135deg, #0066CC, #6600CC);
-        color: white !important;
-        border: none;
-        border-radius: 8px;
-        padding: 0.6rem 2rem;
-        font-weight: 600;
-        font-size: 1rem;
-        transition: all 0.2s;
-        width: 100%;
-    }
-    .stButton > button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 20px rgba(0, 180, 255, 0.3);
-    }
+best_k = 3
+km_final = KMeans(n_clusters=best_k, random_state=42, n_init=10)
+cluster_labels = km_final.fit_predict(X_scaled)
 
-    /* Input box */
-    .stTextInput input {
-        background: #1A1A2E !important;
-        color: white !important;
-        border: 1px solid #2a2a4a !important;
-        border-radius: 8px !important;
-    }
+# ───────── CLUSTER CHARACTERISTICS ─────────
+# Use all-state avg deaths (from base indicators sum) for cluster profiling
+features_with_avg = features.merge(state_avg_all, on='State Name', how='left')
 
-    /* Tags */
-    .tag {
-        display: inline-block;
-        padding: 2px 10px;
-        border-radius: 20px;
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
-        margin-right: 6px;
-    }
-    .tag-socio    { background: #1a2744; color: #60a5fa; border: 1px solid #3b82f6; }
-    .tag-health   { background: #1a2e1a; color: #4ade80; border: 1px solid #22c55e; }
-    .tag-law      { background: #2d1a1a; color: #f87171; border: 1px solid #ef4444; }
-    .tag-demo     { background: #2a1a2e; color: #c084fc; border: 1px solid #a855f7; }
-    .tag-policy   { background: #2d2200; color: #fbbf24; border: 1px solid #f59e0b; }
-    .tag-easy     { background: #1a2e1a44; color: #4ade80; border: 1px solid #22c55e55; }
-    .tag-medium   { background: #2d220044; color: #fbbf24; border: 1px solid #f59e0b55; }
-    .tag-hard     { background: #2d1a1a44; color: #f87171; border: 1px solid #ef444455; }
+cluster_chars = {}
+for i in range(best_k):
+    mask = cluster_labels == i
+    states_in = state_names[mask]
+    avg_deaths = features_with_avg[
+        features_with_avg['State Name'].isin(states_in)
+    ]['Avg Monthly Deaths (All States)'].mean()
+    avg_slope = features_with_avg[
+        features_with_avg['State Name'].isin(states_in)
+    ]['Trend Slope'].mean()
+    cluster_chars[i] = {'states': list(states_in), 'deaths': avg_deaths, 'slope': avg_slope}
+    print(f"Cluster {i}: {len(states_in):2d} states | avg={avg_deaths:6.1f}/mo | trend={avg_slope:+.3f}")
 
-    /* Dataset card */
-    .ds-card {
-        background: #1A1A2E;
-        border: 1px solid #2a2a4a;
-        border-radius: 12px;
-        padding: 1.2rem 1.4rem;
-        margin-bottom: 1rem;
-    }
-    .ds-card:hover { border-color: #3a3a6a; }
-    .ds-name  { font-size: 1.05rem; font-weight: 700; color: #FFFFFF; margin: 6px 0 2px; }
-    .ds-src   { font-size: 0.8rem; color: #666; margin-bottom: 10px; }
-    .ds-label { font-size: 0.75rem; color: #888; font-weight: 600;
-                text-transform: uppercase; letter-spacing: 0.06em; margin: 10px 0 4px; }
-    .ds-join  { font-family: monospace; font-size: 0.82rem; color: #7dd3fc;
-                background: #0f172a; border: 1px solid #1e293b;
-                border-radius: 6px; padding: 6px 12px; margin-bottom: 4px; }
-    .ds-enrich { font-size: 0.88rem; color: #CCCCCC; line-height: 1.6; }
-    .ds-url   { font-size: 0.8rem; color: #00D4FF; }
-
-    /* Status box */
-    .status-box {
-        background: #0f1729;
-        border: 1px solid #1e3a5f;
-        border-radius: 10px;
-        padding: 1rem 1.4rem;
-        margin: 1rem 0;
-        color: #7dd3fc;
-        font-size: 0.9rem;
-    }
-
-    /* MCP summary */
-    .mcp-card {
-        background: #0f1729;
-        border: 1px solid #1e3a5f;
-        border-radius: 10px;
-        padding: 1rem 1.4rem;
-        margin-top: 2rem;
-    }
-    .mcp-card h4 { color: #60a5fa !important; font-size: 0.8rem !important;
-                   text-transform: uppercase; letter-spacing: 0.08em; }
-    .mcp-item { background: #1e293b; border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; }
-    .mcp-item-label { font-size: 0.72rem; color: #64748b; font-weight: 700;
-                      text-transform: uppercase; letter-spacing: 0.06em; }
-    .mcp-item-val { font-size: 0.85rem; color: #94a3b8; line-height: 1.5; }
-</style>
-""", unsafe_allow_html=True)
-
-# ─────────────────────────────────────────────
-# SYSTEM PROMPT
-# ─────────────────────────────────────────────
-SYSTEM_PROMPT = """You are a data engineering and public health research expert.
-
-The user has a US drug overdose deaths dataset:
-- Columns: State, State Name, Indicator (drug type), Date (monthly 2015-2025), Death Count (12-month rolling sum)
-- 10 drug indicators: Cocaine, Heroin, Methadone, Natural opioids, Synthetic opioids, Psychostimulants + combined
-- Coverage: 54 US states/territories
-- K-Means clustering done (K=3): Low Volume/Rural, Moderate & Rising, High Burden Crisis
-- Next step: prediction modeling (Prophet/ARIMA)
-
-Search the web and recommend exactly 5 real, publicly available datasets that can be joined with this dataset.
-
-For each dataset return a JSON object:
-{
-  "name": "dataset name",
-  "source": "organization (CDC, Census, etc.)",
-  "url": "actual URL",
-  "joinKey": "how to join e.g. State FIPS + Year",
-  "enrichment": "1-2 sentences on what new analysis this enables",
-  "category": one of ["Socioeconomic", "Healthcare", "Law Enforcement", "Demographics", "Policy"],
-  "difficulty": one of ["Easy", "Medium", "Hard"]
+sorted_by_deaths = sorted(cluster_chars.keys(), key=lambda x: cluster_chars[x]['deaths'])
+label_names = {
+    sorted_by_deaths[0]: 'Low Volume / Rural',
+    sorted_by_deaths[1]: 'Moderate & Rising',
+    sorted_by_deaths[2]: 'High Burden Crisis',
 }
 
-Search for real datasets with working URLs. Return ONLY a valid JSON array of 5 objects, no markdown, no explanation."""
+# ── result_df: per-state actual avg deaths (NOT cluster-level averages) ──
+state_actual_avg = features_with_avg[['State Name', 'Avg Monthly Deaths (All States)', 'Trend Slope']].copy()
+state_actual_avg.columns = ['State Name', 'Avg Actual Deaths/Mo', 'Trend Slope']
 
-# ─────────────────────────────────────────────
-# HELPERS
-# ─────────────────────────────────────────────
-CATEGORY_ICONS = {
-    "Socioeconomic":    "💰",
-    "Healthcare":       "🏥",
-    "Law Enforcement":  "⚖️",
-    "Demographics":     "👥",
-    "Policy":           "📋",
+result_df = pd.DataFrame({
+    'State':         state_names,
+    'Cluster':       cluster_labels,
+    'Cluster Label': [label_names[c] for c in cluster_labels],
+}).merge(state_actual_avg, left_on='State', right_on='State Name', how='left').drop('State Name', axis=1)
+
+result_df['Avg Actual Deaths/Mo'] = result_df['Avg Actual Deaths/Mo'].round(1)
+result_df['Trend (deaths/mo)'] = result_df['Trend Slope'].round(3)
+result_df = result_df.drop('Trend Slope', axis=1)
+result_df.sort_values('Cluster').reset_index(drop=True).to_csv(
+    f'{OUTPUT_DIR}/cluster_assignments.csv', index=False
+)
+print(f"\n✓ cluster_assignments.csv")
+# ───────── SAVE KMEANS MODEL ─────────
+model_data = {
+    'kmeans': km_final,
+    'scaler': StandardScaler().fit(X),
+    'feature_names': features.columns[1:].tolist(),
+    'state_names': state_names.tolist(),
+    'cluster_labels': cluster_labels.tolist(),
+    'label_names': label_names,
+    'best_k': best_k,
 }
-CATEGORY_TAG = {
-    "Socioeconomic":    "tag-socio",
-    "Healthcare":       "tag-health",
-    "Law Enforcement":  "tag-law",
-    "Demographics":     "tag-demo",
-    "Policy":           "tag-policy",
+
+with open(f'{OUTPUT_DIR}/kmeans_model.pkl', 'wb') as f:
+    pickle.dump(model_data, f)
+print(f"✓ kmeans_model.pkl")
+# ───────── PCA ─────────
+pca = PCA(n_components=2)
+X_pca = pca.fit_transform(X_scaled)
+
+# Save PCA as well for future use
+with open(f'{OUTPUT_DIR}/pca_model.pkl', 'wb') as f:
+    pickle.dump(pca, f)
+print(f"✓ pca_model.pkl")
+
+# ───────── PLOT 1: ELBOW + SILHOUETTE ─────────
+def styled_ax(ax):
+    ax.set_facecolor(THEME['dark'])
+    ax.tick_params(colors=THEME['text'])
+    for spine in ax.spines.values():
+        spine.set_color('#444')
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+
+fig, axes = plt.subplots(1, 2, figsize=(14, 5), facecolor=THEME['dark'])
+for ax in axes:
+    styled_ax(ax)
+
+axes[0].plot(list(K_range), inertias, 'o-', color=COLORS['cyan'], linewidth=2.5, markersize=8)
+axes[0].axvline(x=best_k, color=COLORS['red'], linestyle='--', alpha=0.8, label=f'K={best_k}')
+axes[0].set_title('Elbow Method', color='white', fontsize=13, fontweight='bold')
+axes[0].set_xlabel('Clusters (K)', color=THEME['accent'])
+axes[0].set_ylabel('Inertia', color=THEME['accent'])
+axes[0].legend(facecolor=THEME['card'], labelcolor='white')
+
+axes[1].plot(list(K_range), silhouettes, 's-', color='#7CFC00', linewidth=2.5, markersize=8)
+axes[1].axvline(x=best_k, color=COLORS['red'], linestyle='--', alpha=0.8, label=f'K={best_k}')
+axes[1].set_title('Silhouette Score', color='white', fontsize=13, fontweight='bold')
+axes[1].set_xlabel('Clusters (K)', color=THEME['accent'])
+axes[1].set_ylabel('Score', color=THEME['accent'])
+axes[1].legend(facecolor=THEME['card'], labelcolor='white')
+
+plt.tight_layout()
+plt.savefig(f'{OUTPUT_DIR}/01_elbow_silhouette.png', dpi=150, bbox_inches='tight', facecolor=THEME['dark'])
+plt.close()
+print("✓ 01_elbow_silhouette.png")
+
+# ───────── PLOT 2: PCA SCATTER ─────────
+fig, ax = plt.subplots(figsize=(13, 8), facecolor=THEME['dark'])
+styled_ax(ax)
+
+cluster_colors = [COLORS['gold'], COLORS['red'], COLORS['cyan']]
+for i in range(best_k):
+    mask = cluster_labels == i
+    ax.scatter(X_pca[mask, 0], X_pca[mask, 1], c=cluster_colors[i], s=170, alpha=0.92,
+               label=f'Cluster {i}: {label_names[i]}', edgecolors='white', linewidths=0.6, zorder=3)
+    for j, name in enumerate(state_names[mask]):
+        ax.annotate(name, (X_pca[mask][j, 0], X_pca[mask][j, 1]),
+                    fontsize=7, color='#DDDDDD', alpha=0.9, xytext=(5, 4), textcoords='offset points')
+
+ax.set_title('K-Means Clustering (K=3): US States by Drug Overdose Deaths',
+             color='white', fontsize=15, fontweight='bold', pad=15)
+ax.set_xlabel(f'PC1 - Overall Burden ({pca.explained_variance_ratio_[0]*100:.1f}%)',
+              color=THEME['accent'], fontsize=11)
+ax.set_ylabel(f'PC2 - Drug Mix ({pca.explained_variance_ratio_[1]*100:.1f}%)',
+              color=THEME['accent'], fontsize=11)
+ax.legend(facecolor=THEME['card'], labelcolor='white', fontsize=10, loc='upper left', framealpha=0.9)
+ax.grid(True, alpha=0.08, color='white')
+plt.tight_layout()
+plt.savefig(f'{OUTPUT_DIR}/02_clustering_pca.png', dpi=150, bbox_inches='tight', facecolor=THEME['dark'])
+plt.close()
+print("✓ 02_clustering_pca.png")
+
+# ───────── PLOT 3: DRUG PROFILES ─────────
+indicator_cols = BASE_INDICATORS
+labels_short = ['Cocaine', 'Heroin', 'Methadone', 'Natural\nOpioids', 'Synthetic\nOpioids', 'Psycho-\nstimulants']
+
+fig, axes = plt.subplots(1, 3, figsize=(16, 6), facecolor=THEME['dark'])
+for i in range(best_k):
+    ax = axes[i]
+    ax.set_facecolor(THEME['card'])
+    mask = cluster_labels == i
+    states_in = state_names[mask]
+    vals = [features[features['State Name'].isin(states_in)][col].mean() for col in indicator_cols]
+    bars = ax.bar(labels_short, vals, color=cluster_colors[i], alpha=0.88, edgecolor='white', linewidth=0.5)
+    ax.set_title(f'Cluster {i} - {label_names[i]}\n({len(states_in)} states | {cluster_chars[i]["deaths"]:.0f} deaths/mo)',
+                 color='white', fontsize=10, fontweight='bold')
+    ax.tick_params(colors=THEME['text'], labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_color('#333')
+    ax.set_ylabel('Deaths/Month', color=THEME['accent'], fontsize=9)
+    for bar, val in zip(bars, vals):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height(), f'{val:.1f}',
+                ha='center', va='bottom', color='white', fontsize=8)
+
+plt.suptitle('Drug Type Profile by Cluster (Actual Monthly Deaths)',
+             color='white', fontsize=13, fontweight='bold', y=1.02)
+plt.tight_layout()
+plt.savefig(f'{OUTPUT_DIR}/03_cluster_profiles.png', dpi=150, bbox_inches='tight', facecolor=THEME['dark'])
+plt.close()
+print("✓ 03_cluster_profiles.png")
+
+# ───────── PLOT 4: US GEOGRAPHICAL HEATMAP ─────────
+
+
+state_abbrev = {
+    'Alabama': 'AL', 'Alaska': 'AK', 'Arizona': 'AZ', 'Arkansas': 'AR', 'California': 'CA',
+    'Colorado': 'CO', 'Connecticut': 'CT', 'Delaware': 'DE', 'Florida': 'FL', 'Georgia': 'GA',
+    'Hawaii': 'HI', 'Idaho': 'ID', 'Illinois': 'IL', 'Indiana': 'IN', 'Iowa': 'IA',
+    'Kansas': 'KS', 'Kentucky': 'KY', 'Louisiana': 'LA', 'Maine': 'ME', 'Maryland': 'MD',
+    'Massachusetts': 'MA', 'Michigan': 'MI', 'Minnesota': 'MN', 'Mississippi': 'MS', 'Missouri': 'MO',
+    'Montana': 'MT', 'Nebraska': 'NE', 'Nevada': 'NV', 'New Hampshire': 'NH', 'New Jersey': 'NJ',
+    'New Mexico': 'NM', 'New York': 'NY', 'North Carolina': 'NC', 'North Dakota': 'ND', 'Ohio': 'OH',
+    'Oklahoma': 'OK', 'Oregon': 'OR', 'Pennsylvania': 'PA', 'Rhode Island': 'RI', 'South Carolina': 'SC',
+    'South Dakota': 'SD', 'Tennessee': 'TN', 'Texas': 'TX', 'Utah': 'UT', 'Vermont': 'VT',
+    'Virginia': 'VA', 'Washington': 'WA', 'West Virginia': 'WV', 'Wisconsin': 'WI', 'Wyoming': 'WY',
+    'District of Columbia': 'DC',
 }
-DIFFICULTY_TAG = {"Easy": "tag-easy", "Medium": "tag-medium", "Hard": "tag-hard"}
-DIFFICULTY_EMOJI = {"Easy": "🟢", "Medium": "🟡", "Hard": "🔴"}
 
+mapdata = result_df.copy()
+# Remove NYC (maps to NY — would conflict with New York state)
+# Remove Puerto Rico (not a US state for choropleth scope='usa')
+mapdata = mapdata[~mapdata['State'].isin(['New York City', 'Puerto Rico', 'United States'])]
+mapdata['State_Code'] = mapdata['State'].map(state_abbrev)
+mapdata = mapdata.dropna(subset=['State_Code', 'Avg Actual Deaths/Mo'])
 
-def render_dataset_card(ds, idx):
-    cat = ds.get("category", "Socioeconomic")
-    diff = ds.get("difficulty", "Medium")
-    cat_cls  = CATEGORY_TAG.get(cat, "tag-socio")
-    diff_cls = DIFFICULTY_TAG.get(diff, "tag-medium")
-    icon     = CATEGORY_ICONS.get(cat, "📊")
-    d_emoji  = DIFFICULTY_EMOJI.get(diff, "🟡")
+print(f"\nMap coverage: {len(mapdata)} states")
+print(mapdata[['State', 'State_Code', 'Avg Actual Deaths/Mo', 'Cluster Label']]
+      .sort_values('Avg Actual Deaths/Mo', ascending=False).to_string())
 
-    st.markdown(f"""
-    <div class="ds-card">
-        <span class="tag {cat_cls}">{icon} {cat}</span>
-        <span class="tag {diff_cls}">{d_emoji} {diff}</span>
-        <div class="ds-name">{idx}. {ds.get('name','')}</div>
-        <div class="ds-src">📦 {ds.get('source','')}</div>
-        <div class="ds-label">🔗 Join Key</div>
-        <div class="ds-join">{ds.get('joinKey','')}</div>
-        <div class="ds-label">📊 What This Enables</div>
-        <div class="ds-enrich">{ds.get('enrichment','')}</div>
-        <div style="margin-top:10px">
-            <a href="{ds.get('url','#')}" target="_blank" class="ds-url">🌐 {ds.get('url','')}</a>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+hover_text = [
+    f"<b>{mapdata.iloc[i]['State']}</b><br>"
+    f"Cluster: {mapdata.iloc[i]['Cluster Label']}<br>"
+    f"Avg Deaths/Mo: {mapdata.iloc[i]['Avg Actual Deaths/Mo']:.1f}<br>"
+    f"Trend: {mapdata.iloc[i]['Trend (deaths/mo)']:+.3f} deaths/mo"
+    for i in range(len(mapdata))
+]
 
-
-def call_claude_with_web_search(api_key: str) -> list:
-    """Call Claude API with web_search MCP tool and return parsed dataset list."""
-    client = anthropic.Anthropic(api_key=api_key)
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=4000,
-        system=SYSTEM_PROMPT,
-        tools=[{"type": "web_search_20250305", "name": "web_search"}],
-        messages=[{
-            "role": "user",
-            "content": (
-                "Search the web and find 5 real publicly available datasets "
-                "I can join with my US drug overdose deaths dataset "
-                "(state + monthly time series, 2015-2025). "
-                "Return only a JSON array."
-            )
-        }]
+fig = go.Figure(data=go.Choropleth(
+    locations=mapdata['State_Code'].values,
+    z=mapdata['Avg Actual Deaths/Mo'].values,
+    locationmode='USA-states',           # ← REQUIRED: tells plotly these are state codes
+    text=hover_text,
+    hovertemplate='%{text}<extra></extra>',
+    colorscale=[
+        [0.00, '#0a0a1a'],
+        [0.10, '#1a237e'],
+        [0.30, '#6a1b9a'],
+        [0.55, '#c62828'],
+        [0.75, '#ff6f00'],
+        [1.00, '#ffeb3b'],
+    ],
+    marker_line_color='white',
+    marker_line_width=1.0,
+    colorbar=dict(
+        thickness=20, len=0.75,
+        title=dict(text='Avg Deaths/Month', font=dict(color='white', size=11)),
+        tickfont=dict(color='white', size=10),
+        bgcolor='rgba(26,26,46,0.9)',
+        bordercolor='#555',
+        borderwidth=1,
     )
+))
 
-    # Extract final text block (Claude's response after web search)
-    text_block = next((b for b in response.content if b.type == "text"), None)
-    if not text_block:
-        raise ValueError("No text response received from Claude API")
+fig.update_geos(
+    scope='usa',
+    projection_type='albers usa',
+    showland=True,
+    landcolor=THEME['card'],
+    showlakes=True,
+    lakecolor='#1a3a5c',
+    coastlinecolor='#555',
+    coastlinewidth=1,
+    subunitcolor='#444',       # state borders
+    subunitwidth=1,
+    showsubunits=True,
+    bgcolor=THEME['dark'],
+)
 
-    raw = text_block.text.strip()
-    raw = raw.replace("```json", "").replace("```", "").strip()
+fig.update_layout(
+    title={
+        'text': 'US Drug Overdose Deaths — Geographic Heatmap',
+        'font': {'size': 20, 'color': 'white', 'family': 'Arial Black'},
+        'x': 0.5, 'xanchor': 'center',
+    },
+    geo=dict(bgcolor=THEME['dark']),
+    paper_bgcolor=THEME['dark'],
+    plot_bgcolor=THEME['dark'],
+    font=dict(color='white', size=12),
+    height=700,
+    margin=dict(l=0, r=0, t=80, b=0),
+)
 
-    # Find JSON array
-    start = raw.find("[")
-    end   = raw.rfind("]")
-    if start == -1 or end == -1:
-        raise ValueError("Could not parse JSON array from response")
+fig.write_html(f'{OUTPUT_DIR}/04_us_clustering_map.html')
+print("✓ 04_us_clustering_map.html")
 
-    return json.loads(raw[start:end+1])
+# ───────── PLOT 5: YEAR-WISE GEOGRAPHIC ANALYSIS ─────────
+# Calculate deaths per year for each state
+state_monthly['Year'] = state_monthly['Date'].dt.year
+year_state_avg = state_monthly.groupby(['State Name', 'Year'])['Actual Monthly Deaths'].mean().reset_index()
+year_state_avg.columns = ['State Name', 'Year', 'Avg Deaths/Mo']
 
+# Get unique years and add cluster info
+years = sorted(year_state_avg['Year'].unique())
+year_state_avg = year_state_avg.merge(
+    result_df[['State', 'Cluster', 'Cluster Label']],
+    left_on='State Name', right_on='State', how='left'
+).drop('State', axis=1)
 
-# ─────────────────────────────────────────────
-# SIDEBAR
-# ─────────────────────────────────────────────
-with st.sidebar:
-    st.markdown("## ⚙️ Configuration")
-    st.markdown("---")
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-
-    if not api_key:
-        st.error("❌ ANTHROPIC_API_KEY not found in .env file")
-        st.stop()
+# Build traces for each year
+traces = []
+for year in years:
+    year_data = year_state_avg[year_state_avg['Year'] == year].copy()
+    year_data['State_Code'] = year_data['State Name'].map(state_abbrev)
+    year_data = year_data.dropna(subset=['State_Code', 'Avg Deaths/Mo'])
     
-    st.success("✓ API Key loaded")
+    hover_year = [
+        f"<b>{year_data.iloc[i]['State Name']}</b><br>"
+        f"Year: {year}<br>"
+        f"Avg Deaths/Mo: {year_data.iloc[i]['Avg Deaths/Mo']:.1f}<br>"
+        f"Cluster: {year_data.iloc[i]['Cluster Label']}"
+        for i in range(len(year_data))
+    ]
+    
+    trace = go.Choropleth(
+        locations=year_data['State_Code'].values,
+        z=year_data['Avg Deaths/Mo'].values,
+        locationmode='USA-states',
+        text=hover_year,
+        hovertemplate='%{text}<extra></extra>',
+        colorscale=[
+            [0.00, '#0a0a1a'],
+            [0.10, '#1a237e'],
+            [0.30, '#6a1b9a'],
+            [0.55, '#c62828'],
+            [0.75, '#ff6f00'],
+            [1.00, '#ffeb3b'],
+        ],
+        marker_line_color='white',
+        marker_line_width=1.0,
+        colorbar=dict(
+            thickness=20, len=0.75,
+            title=dict(text='Avg Deaths/Month', font=dict(color='white', size=11)),
+            tickfont=dict(color='white', size=10),
+            bgcolor='rgba(26,26,46,0.9)',
+            bordercolor='#555',
+            borderwidth=1,
+            x=1.02
+        ),
+        name=str(year),
+        visible=(year == years[0])  # Only first year visible by default
+    )
+    traces.append(trace)
 
-    st.markdown("---")
-    st.markdown("### 📂 Your Dataset")
-    st.markdown("""
-    - **Records:** 47,365
-    - **Period:** 2015 – 2025
-    - **States:** 54
-    - **Indicators:** 10 drug types
-    - **Clusters:** 3 (K-Means done)
-    - **Next:** Prediction modeling
-    """)
-
-    st.markdown("---")
-    st.markdown("### 🔧 MCP Tool Used")
-    st.markdown("""
-    `web_search_20250305`  
-    Live internet search via  
-    Anthropic Claude API
-    """)
-
-    st.markdown("---")
-    st.caption("Phase 2 Deliverable · MCP Deployment Demo")
-
-
-# ─────────────────────────────────────────────
-# MAIN PAGE
-# ─────────────────────────────────────────────
-st.markdown("# 🔍 MCP Dataset Recommender")
-st.markdown(
-    "Uses **Claude API + web_search MCP tool** to find real datasets "
-    "you can join with your US Drug Overdose Deaths data for richer analysis."
-)
-
-# Context pills
-st.markdown("""
-<div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0 20px">
-  <span class="tag tag-socio">📅 2015–2025</span>
-  <span class="tag tag-health">🗺️ 54 States</span>
-  <span class="tag tag-demo">💊 10 Indicators</span>
-  <span class="tag tag-policy">🔬 K=3 Clusters Done</span>
-  <span class="tag tag-law">🔗 State + Month Join</span>
-</div>
-""", unsafe_allow_html=True)
-
-st.divider()
-
-# ── Run button ──
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    run_btn = st.button("🚀 Find Linkable Datasets via MCP")
-
-# ── Session state ──
-if "datasets" not in st.session_state:
-    st.session_state.datasets = []
-if "error" not in st.session_state:
-    st.session_state.error = None
-if "search_done" not in st.session_state:
-    st.session_state.search_done = False
-
-# ── Execute search ──
-if run_btn:
-    if not api_key:
-        st.error("⚠️ Please enter your Anthropic API key in the sidebar first.")
-    else:
-        st.session_state.datasets = []
-        st.session_state.error = None
-        st.session_state.search_done = False
-
-        steps = [
-            "🔌 Connecting to Claude API...",
-            "🌐 Invoking web_search MCP tool...",
-            "🔎 Searching CDC data repositories...",
-            "🔎 Searching Census & socioeconomic datasets...",
-            "🔎 Searching healthcare & policy databases...",
-            "⚙️ Evaluating join compatibility with your dataset...",
-            "📊 Ranking by analytical value...",
-            "✅ Compiling final recommendations...",
-        ]
-
-        status_box = st.empty()
-        progress = st.progress(0)
-
-        try:
-            for i, step in enumerate(steps[:-1]):
-                status_box.markdown(
-                    f'<div class="status-box">⏳ {step}</div>',
-                    unsafe_allow_html=True
-                )
-                progress.progress((i + 1) / len(steps))
-                time.sleep(0.4)
-
-            # Actual API call
-            results = call_claude_with_web_search(api_key)
-
-            progress.progress(1.0)
-            status_box.markdown(
-                '<div class="status-box" style="border-color:#22c55e;color:#4ade80">'
-                '✅ Search complete — 5 datasets found!</div>',
-                unsafe_allow_html=True
-            )
-            time.sleep(0.8)
-            status_box.empty()
-            progress.empty()
-
-            st.session_state.datasets = results
-            st.session_state.search_done = True
-
-        except Exception as e:
-            progress.empty()
-            status_box.empty()
-            st.session_state.error = str(e)
-
-
-# ── Show error ──
-if st.session_state.error:
-    st.error(f"❌ {st.session_state.error}")
-
-
-# ── Show results ──
-if st.session_state.datasets:
-    datasets = st.session_state.datasets
-
-    # Summary metrics
-    easy   = sum(1 for d in datasets if d.get("difficulty") == "Easy")
-    medium = sum(1 for d in datasets if d.get("difficulty") == "Medium")
-    hard   = sum(1 for d in datasets if d.get("difficulty") == "Hard")
-    cats   = len(set(d.get("category") for d in datasets))
-
-    st.markdown("### 📊 Results Overview")
-    m1, m2, m3, m4, m5 = st.columns(5)
-    m1.metric("Datasets Found",   len(datasets))
-    m2.metric("Easy to Integrate", easy)
-    m3.metric("Medium Effort",     medium)
-    m4.metric("Complex",           hard)
-    m5.metric("Categories",        cats)
-
-    st.markdown("---")
-    st.markdown("### 📂 Recommended Datasets")
-    st.caption("All datasets joinable with your State + Date columns · Click URLs to access")
-
-    # Filter by category
-    all_cats = sorted(set(d.get("category", "") for d in datasets))
-    selected = st.multiselect(
-        "Filter by category",
-        options=all_cats,
-        default=all_cats,
-        key="cat_filter"
+# Create buttons for year selection
+buttons = []
+for i, year in enumerate(years):
+    visible = [j == i for j in range(len(years))]
+    buttons.append(
+        dict(
+            label=str(year),
+            method='update',
+            args=[{'visible': visible},
+                  {'title': f'US Drug Overdose Deaths — Year-wise Geographic Analysis ({year})'}]
+        )
     )
 
-    filtered = [d for d in datasets if d.get("category") in selected]
+fig_year = go.Figure(data=traces)
 
-    for i, ds in enumerate(filtered, 1):
-        render_dataset_card(ds, i)
+fig_year.update_geos(
+    scope='usa',
+    projection_type='albers usa',
+    showland=True,
+    landcolor=THEME['card'],
+    showlakes=True,
+    lakecolor='#1a3a5c',
+    coastlinecolor='#555',
+    coastlinewidth=1,
+    subunitcolor='#444',
+    subunitwidth=1,
+    showsubunits=True,
+    bgcolor=THEME['dark'],
+)
 
-    # ── Re-run button ──
-    st.divider()
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔄 Search Again (different results)"):
-            st.session_state.datasets = []
-            st.session_state.search_done = False
-            st.rerun()
+fig_year.update_layout(
+    updatemenus=[
+        dict(
+            type='buttons',
+            direction='left',
+            x=0.05, y=1.15,
+            buttons=buttons,
+            bgcolor='rgba(26,26,46,0.9)',
+            bordercolor='white',
+            borderwidth=1,
+            font=dict(color='white', size=10),
+            active=0
+        )
+    ],
+    title={
+        'text': f'US Drug Overdose Deaths — Year-wise Geographic Analysis ({years[0]})',
+        'font': {'size': 20, 'color': 'white', 'family': 'Arial Black'},
+        'x': 0.5, 'xanchor': 'center',
+    },
+    geo=dict(bgcolor=THEME['dark']),
+    paper_bgcolor=THEME['dark'],
+    plot_bgcolor=THEME['dark'],
+    font=dict(color='white', size=12),
+    height=750,
+    margin=dict(l=0, r=0, t=120, b=0),
+)
 
-    # ── MCP Summary for Slide 2 ──
-    st.markdown("---")
-    st.markdown("### 📋 MCP Deployment Summary *(for your Slide 2)*")
+fig_year.write_html(f'{OUTPUT_DIR}/05_year_analysis_map.html')
+print("✓ 05_year_analysis_map.html")
 
-    col1, col2 = st.columns(2)
-    with col1:
-        with st.expander("✅ What Worked", expanded=True):
-            st.markdown("""
-            - `web_search_20250305` tool invoked correctly via Claude API
-            - Live web results returned in real time
-            - Structured JSON output parsed cleanly from response
-            - Dataset URLs, join keys, and enrichment notes all populated
-            - Streamlit UI deployed in under 5 minutes
-            """)
-        with st.expander("⚠️ What Didn't / Challenges"):
-            st.markdown("""
-            - Results vary by query phrasing — needed iteration
-            - Some URLs may need manual verification
-            - API key must be managed securely (env var / secrets)
-            - Claude sometimes wraps JSON in markdown — requires stripping
-            """)
-    with col2:
-        with st.expander("💡 Key Learning", expanded=True):
-            st.markdown("""
-            MCP tools give Claude **live internet access** inside your analysis workflow.  
-            Instead of manually Googling for complementary datasets, 
-            the pipeline can discover them automatically after clustering runs.  
-            This is how **agentic data engineering** works in production.
-            """)
-        with st.expander("🔗 Real-World Relevance"):
-            st.markdown("""
-            In a production DE pipeline:
-            - Clustering runs nightly on new CDC data
-            - MCP web search auto-discovers new relevant datasets
-            - Results are logged to a data catalog
-            - Engineers review and approve joins via a dashboard
-            
-            This demo is a miniature version of that workflow.
-            """)
+# ───────── PLOT 6: YEAR-WISE TREND BY CLUSTER ─────────
+year_cluster_avg = year_state_avg.groupby(['Year', 'Cluster Label'])['Avg Deaths/Mo'].mean().reset_index()
+
+fig_trend, ax = plt.subplots(figsize=(14, 7), facecolor=THEME['dark'])
+styled_ax(ax)
+
+cluster_order = ['Low Volume / Rural', 'Moderate & Rising', 'High Burden Crisis']
+colors_trend = [COLORS['gold'], COLORS['red'], COLORS['cyan']]
+
+for cluster_name, color in zip(cluster_order, colors_trend):
+    data = year_cluster_avg[year_cluster_avg['Cluster Label'] == cluster_name]
+    ax.plot(data['Year'], data['Avg Deaths/Mo'], marker='o', linewidth=3, markersize=8,
+            label=cluster_name, color=color, alpha=0.9)
+
+ax.set_title('Year-wise Drug Overdose Deaths Trend by Cluster',
+             color='white', fontsize=15, fontweight='bold', pad=15)
+ax.set_xlabel('Year', color=THEME['accent'], fontsize=12)
+ax.set_ylabel('Avg Actual Deaths/Month', color=THEME['accent'], fontsize=12)
+ax.legend(facecolor=THEME['card'], labelcolor='white', fontsize=11, loc='best', framealpha=0.9)
+ax.grid(True, alpha=0.2, color='white', linestyle='--')
+ax.set_ylim(bottom=0)
+
+plt.tight_layout()
+plt.savefig(f'{OUTPUT_DIR}/06_year_trend_by_cluster.png', dpi=150, bbox_inches='tight', facecolor=THEME['dark'])
+plt.close()
+print("✓ 06_year_trend_by_cluster.png\n")
+print(f"All outputs saved to: {OUTPUT_DIR}")
+print(f"\nData Files:")
+print(f"  - cluster_assignments.csv (state-to-cluster mapping)")
+print(f"\nModel Files:")
+print(f"  - kmeans_model.pkl        (fitted KMeans + scaler + metadata)")
+print(f"  - pca_model.pkl           (PCA transformer)")
+print(f"\nVisualization Files:")
+print(f"  - 01_elbow_silhouette.png (K selection metrics)")
+print(f"  - 02_clustering_pca.png   (2D PCA scatter with state labels)")
+print(f"  - 03_cluster_profiles.png (drug type breakdown per cluster)")
+print(f"  - 04_us_clustering_map.html (interactive US geographical heatmap)")
+print(f"  - 05_state_summary.png    (cluster summary with state counts)")
+print(f"  - 06_year_trend_by_cluster.png (year-wise trend analysis)")

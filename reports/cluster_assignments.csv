@@ -1,0 +1,52 @@
+State,Cluster,Cluster Label,Avg Actual Deaths/Mo,Trend (deaths/mo)
+Alabama,0,Low Volume / Rural,71.6,-11.787
+Mississippi,0,Low Volume / Rural,81.7,-10.748
+Missouri,0,Low Volume / Rural,111.7,-3.72
+Nebraska,0,Low Volume / Rural,9.8,-2.011
+Nevada,0,Low Volume / Rural,208.6,3.446
+New Hampshire,0,Low Volume / Rural,45.0,-0.364
+New Jersey,0,Low Volume / Rural,98.6,-3.621
+New Mexico,0,Low Volume / Rural,150.8,0.446
+North Dakota,0,Low Volume / Rural,39.6,-7.647
+Oklahoma,0,Low Volume / Rural,157.5,2.232
+Oregon,0,Low Volume / Rural,187.9,1.474
+Puerto Rico,0,Low Volume / Rural,22.9,-6.692
+Rhode Island,0,Low Volume / Rural,58.3,-0.331
+South Dakota,0,Low Volume / Rural,8.7,-0.09
+Utah,0,Low Volume / Rural,82.5,-0.312
+Vermont,0,Low Volume / Rural,45.9,-0.134
+Minnesota,0,Low Volume / Rural,132.7,-10.923
+Maine,0,Low Volume / Rural,113.3,-0.438
+Montana,0,Low Volume / Rural,25.1,-1.202
+District of Columbia,0,Low Volume / Rural,125.1,-1.185
+Alaska,0,Low Volume / Rural,80.9,0.876
+Arkansas,0,Low Volume / Rural,10.9,-2.125
+California,0,Low Volume / Rural,36.9,-6.92
+Connecticut,0,Low Volume / Rural,193.3,-3.996
+Delaware,0,Low Volume / Rural,68.6,-0.91
+Florida,0,Low Volume / Rural,25.2,-2.299
+Hawaii,0,Low Volume / Rural,65.6,-0.049
+Wyoming,0,Low Volume / Rural,16.3,0.143
+Kansas,0,Low Volume / Rural,137.1,-5.132
+Idaho,0,Low Volume / Rural,52.9,-3.335
+Iowa,0,Low Volume / Rural,53.0,-0.347
+Texas,1,High Burden Crisis,207.0,-12.453
+North Carolina,1,High Burden Crisis,745.1,-7.012
+Illinois,1,High Burden Crisis,279.2,-7.989
+Maryland,1,High Burden Crisis,221.2,-6.097
+New York City,1,High Burden Crisis,359.8,-7.564
+West Virginia,2,Moderate & Rising,289.4,-6.861
+Washington,2,Moderate & Rising,222.9,0.393
+Virginia,2,Moderate & Rising,295.0,-3.481
+Massachusetts,2,Moderate & Rising,99.2,-3.499
+Arizona,2,Moderate & Rising,124.9,-3.799
+Georgia,2,Moderate & Rising,265.4,-0.436
+Kentucky,2,Moderate & Rising,144.3,-3.828
+South Carolina,2,Moderate & Rising,246.8,-1.01
+Wisconsin,2,Moderate & Rising,227.1,-2.668
+Colorado,2,Moderate & Rising,259.1,-7.442
+New York,2,Moderate & Rising,98.8,-38.091
+Indiana,2,Moderate & Rising,150.9,-6.827
+Ohio,2,Moderate & Rising,130.8,-3.779
+Michigan,2,Moderate & Rising,175.3,-9.102
+Tennessee,2,Moderate & Rising,265.2,-5.312

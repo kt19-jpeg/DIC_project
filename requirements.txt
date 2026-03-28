@@ -1,6 +1,7 @@
+streamlit
+anthropic
+prophet
 pandas
 numpy
-matplotlib
-seaborn
 scikit-learn
-plotly
+python-dotenv

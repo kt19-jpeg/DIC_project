@@ -159,7 +159,18 @@ python src/prophet_training.py
 
 ---
 
-## Running the Dashboard
+## Running the Dashboard for easy reproducibility
+
+Runing in git Codespaces 
+
+```bash
+pip install -r requirements.txt
+
+python -m streamlit run src/mcp_dataset_recommender.py
+```
+
+
+
 
 Once both model files exist in `reports/`, launch the Streamlit app:
 

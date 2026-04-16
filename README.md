@@ -122,6 +122,8 @@ ANTHROPIC_API_KEY=sk-ant-api03-...
 
 Run these scripts **in order**. Each step generates files that the next step depends on.
 
+Skip this part as we already have the models in the models directory  
+
 ### Step 1 — Run Clustering
 
 Unrolls CDC rolling sums, engineers features, fits K-Means (K=3), and saves all model artifacts to `reports/`.

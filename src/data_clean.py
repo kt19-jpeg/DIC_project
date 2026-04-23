@@ -10,6 +10,9 @@ processed_data_path = '/Users/kavyansh/DIC_project/data/processed/cleaned_drug_o
 # Read the raw data
 df = pd.read_csv(raw_data_path)
 
+# Convert 'Data Value' to numeric (remove commas, etc.)
+df['Data Value'] = pd.to_numeric(df['Data Value'].astype(str).str.replace(',', ''), errors='coerce')
+
 # Basic data cleaning steps
 # Drop rows with any missing values
 df_cleaned = df.dropna()
@@ -38,9 +41,6 @@ df_cleaned_filtered = df_cleaned_filtered.rename(columns={'Data Value': 'Death C
 os.makedirs(os.path.dirname(processed_data_path), exist_ok=True)
 
 # Save the cleaned and filtered DataFrame to CSV
-df_cleaned_filtered.to_csv(processed_data_path, index=False)
-
-# Save the cleaned data
 df_cleaned_filtered.to_csv(processed_data_path, index=False)
 
 print(f"Cleaned data saved to {processed_data_path}")

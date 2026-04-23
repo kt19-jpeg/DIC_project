@@ -78,3 +78,167 @@ Seth P, Baldwin GT, Davis NL, Jones CM. Clarifying CDC's Efforts to Quantify Ove
 
 
 https://journals.sagepub.com/doi/10.1177/19427891251401921
+
+
+# Drug Overdose Deaths — Phase 2
+**CDC Drug Overdose Deaths Analysis | K-Means Clustering + Prophet Forecasting + MCP Deployment**
+
+
+## Prerequisites
+
+- Python 3.9+
+- Virtual environment (recommended)
+- Anthropic API key — get one at [console.anthropic.com](https://console.anthropic.com)
+
+---
+
+## Setup
+
+**1. Clone the repo and create a virtual environment**
+```bash
+git clone <your-repo-url>
+cd DIC_project
+python -m venv venv
+source venv/bin/activate        # Mac/Linux
+venv\Scripts\activate           # Windows
+```
+
+**2. Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+**3. Add your API key**
+
+Create a `.env` file in the project root:
+```
+ANTHROPIC_API_KEY=sk-ant-api03-...
+```
+
+
+---
+
+## Reproducing the Results
+
+Run these scripts **in order**. Each step generates files that the next step depends on.
+
+# NOTE:Skip this part as we already have the models in the models directory  
+
+### Step 1 — Run Clustering
+
+Unrolls CDC rolling sums, engineers features, fits K-Means (K=3), and saves all model artifacts to `reports/`.
+
+```bash
+python src/clustering.py
+```
+
+**Outputs:**
+- `reports/kmeans_model.pkl` — fitted K-Means + scaler + metadata
+- `reports/pca_model.pkl` — PCA transformer
+- `reports/label_names.json` — cluster ID to label mapping
+- `reports/cluster_assignments.csv` — state-to-cluster mapping
+- `reports/01_elbow_silhouette.png`
+- `reports/02_clustering_pca.png`
+- `reports/03_cluster_profiles.png`
+- `reports/04_us_clustering_map.html`
+- `reports/05_year_analysis_map.html`
+- `reports/06_year_trend_by_cluster.png`
+
+### Step 2 — Train Prophet Models
+
+Fits one Prophet model per state on actual monthly deaths (unrolled). Saves all models as a single pickle file.
+
+```bash
+python src/prophet_training.py
+```
+
+**Output:**
+- `reports/prophet_models.pkl` — dict of `{state_name: Prophet model}`
+
+> This step takes a few minutes — it fits ~49 models.
+
+---
+
+## Running the Dashboard for easy reproducibility
+
+Runing in git Codespaces 
+
+```bash
+pip install -r requirements.txt
+
+python -m streamlit run src/mcp_dataset_recommender.py
+```
+
+
+
+
+Once both model files exist in `reports/`, launch the Streamlit app:
+
+```bash
+streamlit run src/mcp_dataset_recommender.py
+```
+
+Opens at `http://localhost:8501` with three tabs:
+
+| Tab | What it does |
+|-----|-------------|
+| 🔍 Dataset Recommender | Calls Claude API + web_search MCP tool live to find linkable datasets |
+| 🎯 K-Means Predictor | Enter drug death values → predicts cluster for any state |
+| 📈 Prophet Forecast | Select a state + forecast horizon → projected monthly deaths |
+
+---
+
+## Key Data Note
+
+The CDC `Death Count` column is a **12-month rolling sum**, not actual monthly deaths. All scripts unroll it first:
+
+```python
+actual_monthly(t) = rolling(t) - rolling(t - 12 months)
+```
+
+Skipping this step produces inflated features and incorrect cluster assignments.
+
+---
+
+## MCP Deployment
+
+The dashboard uses the Anthropic `web_search_20250305` MCP tool in Tab 1 to search the internet live and return structured dataset recommendations. This requires a valid Anthropic API key in your `.env` file.
+
+Tabs 2 and 3 run entirely locally using the trained pickle files — no API key needed for those.
+
+---
+
+## Cluster Labels
+
+| Cluster ID | Label | Avg Deaths/Month |
+|-----------|-------|-----------------|
+| 0 | Low Volume / Rural | ~81 |
+| 2 | Moderate & Rising | ~200 |
+| 1 | High Burden Crisis | ~362 |
+
+> Cluster IDs are assigned by K-Means randomly — always verify against `cluster_assignments.csv`.
+
+---
+
+## Common Issues
+
+**`No such file or directory: kmeans_model.pkl`**
+Run `clustering.py` first to generate model files.
+
+**`401 authentication_error`**
+Check your `.env` file — no quotes around the key, no trailing spaces.
+
+**`Prediction failed: dict object has no attribute predict`**
+The app loads `kmeans_model.pkl` as a dict. Make sure you're using the updated `load_models()` function that extracts `model_data['kmeans']` and `model_data['scaler']` separately.
+
+**Prophet install fails**
+```bash
+pip install pystan
+pip install prophet
+```
+Install `pystan` first, then `prophet`.
+
+---
+
+## Authors
+Kavyansh Tyagi — MS Data Science, University at Buffalo

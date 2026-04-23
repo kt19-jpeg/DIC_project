@@ -469,10 +469,6 @@ with tab3:
             with st.spinner(f"Running Prophet forecast for {selected_state}..."):
                 try:
                     prophet_model = models['prophet'][selected_state]
-                    
-                    historical = prophet_model.history.copy()
-                    hist_trend = "Rising" if historical['y'].iloc[-1] < historical['y'].iloc[0] else "Declining"
-                    
                     future        = prophet_model.make_future_dataframe(periods=periods, freq='MS')
                     forecast      = prophet_model.predict(future)
 
@@ -480,20 +476,13 @@ with tab3:
                     peak_val      = forecast_only['yhat'].max()
                     peak_month    = forecast_only.loc[forecast_only['yhat'].idxmax(), 'ds'].strftime('%b %Y')
                     avg_val       = forecast_only['yhat'].mean()
-                    fut_trend_dir  = "Rising" if forecast_only['yhat'].iloc[-1] > forecast_only['yhat'].iloc[0] else "Declining"
-                    
-                    trend_warning = None
-                    if hist_trend != fut_trend_dir:
-                        trend_warning = f"⚠️ Note: Historical trend is {hist_trend.lower()}, but forecast shows {fut_trend_dir.lower()}"
+                    trend_dir     = "📈 Rising" if forecast_only['yhat'].iloc[-1] > forecast_only['yhat'].iloc[0] else "📉 Declining"
 
                     m1, m2, m3, m4 = st.columns(4)
                     m1.metric("Peak Forecast",  f"{peak_val:.0f}/mo")
                     m2.metric("Peak Month",      peak_month)
                     m3.metric("Avg Forecast",   f"{avg_val:.0f}/mo")
-                    m4.metric("Trend Direction", "📈 Rising" if fut_trend_dir == "Rising" else "📉 Declining")
-
-                    if trend_warning:
-                        st.warning(trend_warning)
+                    m4.metric("Trend Direction", trend_dir)
 
                     st.divider()
                     st.markdown(f"#### 📊 {selected_state} — {periods}-Month Forecast")
@@ -521,7 +510,7 @@ with tab3:
                             Prophet forecasts <b style="color:#00D4FF">{selected_state}</b> will peak at 
                             <b style="color:#FF6B6B">{peak_val:.0f} deaths/month</b> around <b>{peak_month}</b> 
                             with a {periods}-month average of <b>{avg_val:.0f} deaths/month</b>. 
-                            Overall forecast trajectory: <b>{"📈 Rising" if fut_trend_dir == "Rising" else "📉 Declining"}</b>.
+                            Overall trajectory: <b>{trend_dir}</b>.
                         </div>
                     </div>
                     """, unsafe_allow_html=True)

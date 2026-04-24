@@ -1,0 +1,63 @@
+﻿Location,Adolescents Ages 12-17 with an Opioid Use Disorder,Adults Ages 18+ with an Opioid Use Disorder
+Alabama,0.01,0.027
+Alaska,0.008,0.022
+Arizona,0.013,0.024
+Arkansas,0.014,0.023
+California,0.011,0.019
+Colorado,0.01,0.021
+Connecticut,0.01,0.021
+Delaware,0.015,0.022
+District of Columbia,0.012,0.022
+Florida,0.012,0.021
+Georgia,0.016,0.024
+Hawaii,0.007,0.021
+Idaho,0.011,0.02
+Illinois,0.007,0.02
+Indiana,0.012,0.022
+Iowa,0.01,0.022
+Kansas,0.015,0.022
+Kentucky,0.014,0.033
+Louisiana,0.012,0.04
+Maine,0.011,0.021
+Maryland,0.014,0.02
+Massachusetts,0.009,0.02
+Michigan,0.01,0.021
+Minnesota,0.014,0.018
+Mississippi,0.01,0.036
+Missouri,0.014,0.023
+Montana,0.01,0.018
+Nebraska,0.018,0.021
+Nevada,0.012,0.026
+New Hampshire,0.013,0.023
+New Jersey,0.012,0.02
+New Mexico,0.01,0.03
+New York,0.011,0.02
+North Carolina,0.009,0.024
+North Dakota,0.013,0.018
+Ohio,0.01,0.023
+Oklahoma,0.014,0.028
+Oregon,0.009,0.022
+Pennsylvania,0.012,0.02
+Rhode Island,0.009,0.024
+South Carolina,0.013,0.025
+South Dakota,0.013,0.021
+Tennessee,0.015,0.023
+Texas,0.01,0.022
+Utah,0.011,0.02
+Vermont,0.01,0.021
+Virginia,0.013,0.017
+Washington,0.008,0.018
+West Virginia,0.009,0.037
+Wisconsin,0.013,0.02
+Wyoming,0.013,0.023
+,,
+Notes,,
+"Estimated number of individuals with a past year opioid use disorder is rounded to the nearest 1,000. Data may not sum to total due to rounding.",,
+,,
+"This table shows the share of individuals who were determined by NSDUH to have an opioid use disorder in the past year among all adolescents ages 12-17 and among all adults. Opioid use disorder is defined as meeting the criteria for heroin or pain reliever use disorder, and estimates are based on criteria from the Diagnostic and Statistical Manual of Mental Disorders, 5th edition criteria. Individuals who did not fully meet criteria for one of these disorders were not classified as having an opioid use disorder. NSDUH estimates exclude individuals who exclusively used illicitly manufactured fentanyl.",,
+,,
+Sources,,
+"Substance Abuse and Mental Health Services Administration (SAMHSA), Center for Behavioral Health Statistics and Quality, [National Survey on Drug Use and Health (NSDUH), 2022 and 2023](https://www.samhsa.gov/data/report/2022-2023-nsduh-estimated-totals-state).",,
+,,
+Definitions,,
+*NSD*: Not sufficient data  (the estimate is greater than 0 but less than 500),,

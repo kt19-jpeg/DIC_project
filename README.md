@@ -238,6 +238,63 @@ pip install prophet
 ```
 Install `pystan` first, then `prophet`.
 
+
+---
+
+## Phase 3 — Scalable Pipeline with Databricks & Medallion Architecture
+
+Phase 3 re-implements the Phase 2 analytics pipeline at scale using Apache Spark on Databricks. The entire dataset moves through a **Medallion Architecture** (Bronze → Silver → Gold) backed by Delta Lake, with MLlib replacing the pandas/sklearn stack for distributed model training.
+
+### Additional Data Source
+
+We integrated the **KFF State Health Facts** dataset on Opioid Use Disorder (OUD) prevalence (SAMHSA NSDUH 2022–2023), providing state-level OUD rates split by adolescents (ages 12–17) and adults (18+) for all 50 states and DC. The original file is in Apple Numbers format — run `src/convert_numbers_to_csv.py` to generate the CSV before uploading to DBFS.
+
+### Medallion Architecture
+
+| Layer | Tables | Description |
+|---|---|---|
+| **Bronze** | `bronze_cdc_overdose`, `bronze_kff_opioid_disorder` | Raw ingestion — no transforms, all columns preserved as strings |
+| **Silver** | `silver_cdc_overdose`, `silver_kff_opioid_disorder` | Type casting, quality filter (`pct_complete == 100`, `pct_pending < 0.3`), null drops, deduplication, derived columns |
+| **Gold** | `gold_state_annual_metrics`, `gold_indicator_trends`, `gold_ml_features`, `gold_cdc_kff_joined`, 3 insight tables | Business aggregates, YoY window metrics, CDC × KFF join on `state_name`, ML-ready feature table with `high_burden` label |
+
+### MLlib Models
+
+All three models use the **Pipeline API** with **CrossValidator** for hyperparameter tuning.
+
+| Model | Task | Key Features |
+|---|---|---|
+| K-Means Clustering | Group states by overdose burden profile | `avg_monthly_deaths`, `max_monthly_deaths`, `stddev_deaths`, `yoy_pct_change` |
+| Ridge Regression | Predict annual death count per state | CDC features + KFF `adult_oud_pct`, `adolescent_oud_pct`, `combined_oud_pct` |
+| Random Forest Classifier | Predict high vs low burden state-year | CDC features + `drug_category` (OHE encoded) |
+
+### Notebooks — Run in this order
+
+```
+notebooks/databricks/
+├── 01_bronze_layer.ipynb        # Ingest both CSVs → Delta tables
+├── 02_silver_layer.ipynb        # Clean, cast, filter, deduplicate
+├── 03_gold_layer.ipynb          # Aggregations, ML features, KFF join, insights
+├── additional_data.ipynb        # KFF full pipeline + 3 insights + ML comparison
+└── 04_mllib_models.ipynb        # K-Means, Ridge Regression, Random Forest
+```
+
+### Data Setup
+
+1. Run `python src/convert_numbers_to_csv.py` locally to convert the KFF Numbers file to CSV
+2. Upload `cleaned_drug_overdose_deaths.csv` and `kff_opioid_disorder_by_state.csv` to DBFS at `/FileStore/tables/`
+3. Import all `.ipynb` files into Databricks via **Workspace → Import → IPython Notebook**
+4. Run notebooks in the order listed above — database `eas587_phase3` is created automatically in notebook 01
+
+> Large data files are excluded from this repository. See `data/README.md` for download instructions or use the UB Box link provided in the submission.
+
+### Dependencies
+
+```
+pyspark>=3.3.0
+delta-spark>=2.0.0
+numbers-parser          # for KFF .numbers → CSV conversion (local only)
+```
+
 ---
 
 ## Authors

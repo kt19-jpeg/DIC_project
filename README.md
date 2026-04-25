@@ -271,17 +271,16 @@ All three models use the **Pipeline API** with **CrossValidator** for hyperparam
 
 ```
 notebooks/databricks/
-├── 01_bronze_layer.ipynb        # Ingest both CSVs → Delta tables
-├── 02_silver_layer.ipynb        # Clean, cast, filter, deduplicate
-├── 03_gold_layer.ipynb          # Aggregations, ML features, KFF join, insights
-├── additional_data.ipynb        # KFF full pipeline + 3 insights + ML comparison
-└── 04_mllib_models.ipynb        # K-Means, Ridge Regression, Random Forest
+├── p3_bronze_layer.ipynb        # Ingest both CSVs → Delta tables
+├── p3_silver_layer.ipynb        # Clean, cast, filter, deduplicate
+├── p3_gold_layer.ipynb          # Aggregations, ML features, KFF join, insights
+└── p3_mllib_models.ipynb        # K-Means, Ridge Regression, Random Forest
 ```
 
 ### Data Setup
 
-1. Run `python src/convert_numbers_to_csv.py` locally to convert the KFF Numbers file to CSV
-2. Upload `cleaned_drug_overdose_deaths.csv` and `kff_opioid_disorder_by_state.csv` to DBFS at `/FileStore/tables/`
+
+2. Upload `cleaned_drug_overdose_deaths.csv` and `kff_opioid_disorder_by_state.csv` to volumes in dBfs
 3. Import all `.ipynb` files into Databricks via **Workspace → Import → IPython Notebook**
 4. Run notebooks in the order listed above — database `eas587_phase3` is created automatically in notebook 01
 

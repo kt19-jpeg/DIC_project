@@ -297,4 +297,4 @@ numbers-parser          # for KFF .numbers → CSV conversion (local only)
 ---
 
 ## Authors
-Kavyansh Tyagi — MS Data Science, University at Buffalo
+Kavyansh

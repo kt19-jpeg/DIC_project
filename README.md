@@ -18,7 +18,8 @@ Build a state-level early warning system that forecasts overdose deaths 1–3 mo
 
 > ⚠️ The `Death Count` column is a **12-month rolling sum**, not actual monthly deaths. All scripts unroll it first:
 > `actual_monthly(t) = rolling(t) - rolling(t-12)`
->https://data.cdc.gov/NCHS/VSRR-Provisional-Drug-Overdose-Death-Counts/xkb8-kh2a
+> https://data.cdc.gov/NCHS/VSRR-Provisional-Drug-Overdose-Death-Counts/xkb8-kh2a
+
 ---
 
 ## Phases

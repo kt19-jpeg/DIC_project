@@ -158,7 +158,7 @@ with st.sidebar:
     else:
         st.error(f"✗ K-Means: {models.get('kmeans_error','not found')}")
     if models.get('prophet_loaded'):
-        st.success(f"✓ Prophet loaded ({len(models['prophet'])} states)")
+        st.success(f"✓ Prophet loaded 50 states)")
     else:
         st.error(f"✗ Prophet: {models.get('prophet_error','not found')}")
     if api_key:

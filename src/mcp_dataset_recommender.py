@@ -170,7 +170,7 @@ with st.sidebar:
     st.markdown("""
     - **Records:** 47,365
     - **Period:** 2015 – 2025
-    - **States:** 54
+    - **States:** 50
     - **Indicators:** 10 drug types
     - **Clusters:** 3 (K-Means)
     """)
@@ -184,7 +184,7 @@ SYSTEM_PROMPT = """You are a data engineering and public health research expert.
 The user has a US drug overdose deaths dataset:
 - Columns: State, State Name, Indicator (drug type), Date (monthly 2015-2025), Death Count (12-month rolling sum)
 - 10 drug indicators: Cocaine, Heroin, Methadone, Natural opioids, Synthetic opioids, Psychostimulants + combined
-- Coverage: 54 US states/territories
+- Coverage: 50 US states/territories
 - K-Means clustering done (K=3): Low Volume/Rural, Moderate & Rising, High Burden Crisis
 Search the web and recommend exactly 5 real, publicly available datasets that can be joined with this dataset.
 For each dataset return a JSON object with fields: name, source, url, joinKey, enrichment, category (one of Socioeconomic/Healthcare/Law Enforcement/Demographics/Policy), difficulty (Easy/Medium/Hard).
@@ -271,7 +271,7 @@ st.markdown("K-Means clustering · Prophet forecasting · MCP web search — all
 st.markdown("""
 <div style="display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 20px">
   <span class="tag tag-socio">📅 2015–2025</span>
-  <span class="tag tag-health">🗺️ 54 States</span>
+  <span class="tag tag-health">🗺️ 50 States</span>
   <span class="tag tag-demo">💊 10 Indicators</span>
   <span class="tag tag-policy">🔬 K=3 Clusters</span>
   <span class="tag tag-law">🔗 State + Month Join</span>
